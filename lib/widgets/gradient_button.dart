@@ -3,7 +3,8 @@ import '../utils/app_colors.dart';
 
 class GradientButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final IconData? icon;
   final Gradient? gradient;
   final Color? textColor;
   final double? width;
@@ -15,6 +16,7 @@ class GradientButton extends StatelessWidget {
     super.key,
     required this.text,
     required this.onPressed,
+    this.icon,
     this.gradient,
     this.textColor,
     this.width,
@@ -45,15 +47,29 @@ class GradientButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: borderRadius ?? BorderRadius.circular(12),
           child: Container(
-            padding: padding ?? const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: padding ??
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: Center(
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: textColor ?? AppColors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Icon(
+                      icon,
+                      color: textColor ?? AppColors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    text,
+                    style: TextStyle(
+                      color: textColor ?? AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

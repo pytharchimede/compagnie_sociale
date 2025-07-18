@@ -127,7 +127,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
               children: List.generate(_bottomNavItems.length, (index) {
                 final isSelected = _currentIndex == index;
                 final item = _bottomNavItems[index];
-                
+
                 return GestureDetector(
                   onTap: () => _onTabTapped(index),
                   child: AnimatedContainer(
@@ -147,9 +147,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                       children: [
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
-                          child: isSelected
-                              ? item.activeIcon
-                              : item.icon,
+                          child: isSelected ? item.activeIcon : item.icon,
                         ),
                         const SizedBox(height: 2),
                         AnimatedDefaultTextStyle(

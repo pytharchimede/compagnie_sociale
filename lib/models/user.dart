@@ -67,7 +67,7 @@ class User {
       lastLoginAt: json['lastLoginAt'] != null
           ? DateTime.parse(json['lastLoginAt'])
           : null,
-      isPremium: json['isPremium'] ?? false,
+      isPremium: json['isPremium'] == 1 || json['isPremium'] == true,
       totalBookings: json['totalBookings'] ?? 0,
       averageRating: (json['averageRating'] ?? 0.0).toDouble(),
       totalSavings: (json['totalSavings'] ?? 0.0).toDouble(),
@@ -91,7 +91,7 @@ class User {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'lastLoginAt': lastLoginAt?.toIso8601String(),
-      'isPremium': isPremium,
+      'isPremium': isPremium ? 1 : 0,
       'totalBookings': totalBookings,
       'averageRating': averageRating,
       'totalSavings': totalSavings,

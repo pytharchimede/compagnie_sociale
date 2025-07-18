@@ -5,6 +5,8 @@ import '../utils/app_colors.dart';
 import 'database_test_screen.dart';
 import '../widgets/gradient_button.dart';
 import 'login_screen.dart';
+import '../database/database_helper.dart';
+import '../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +16,107 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  String _debugInfo = "";
+
+  Future<void> _runQuickDiagnosis() async {
+    final authProvider = context.read<AuthProvider>();
+    final authService = AuthService();
+    final dbHelper = DatabaseHelper();
+
+    String info = "🔍 DIAGNOSTIC RAPIDE:\n\n";
+
+    // AuthProvider state
+    info += "📱 AuthProvider:\n";
+    info += "- isLoggedIn: ${authProvider.isLoggedIn}\n";
+    info += "- currentUser: ${authProvider.currentUser?.email ?? 'null'}\n";
+    info += "- isLoading: ${authProvider.isLoading}\n\n";
+
+    // AuthService state
+    info += "🔐 AuthService:\n";
+    try {
+      final isLoggedIn = await authService.isLoggedIn();
+      final currentUser = await authService.getCurrentUser();
+      info += "- isLoggedIn: $isLoggedIn\n";
+      info += "- currentUser: ${currentUser?.email ?? 'null'}\n\n";
+    } catch (e) {
+      info += "- Erreur: $e\n\n";
+    }
+
+    // Database check
+    info += "💾 Base de données:\n";
+    try {
+      // Récupérer le dernier utilisateur créé
+      final db = await dbHelper.database;
+      final result = await db.query(
+        'users',
+        orderBy: 'created_at DESC',
+        limit: 1,
+      );
+
+      if (result.isNotEmpty) {
+        final lastUser = result.first;
+        info += "- Dernier utilisateur: ${lastUser['email']}\n";
+        info += "- ID: ${lastUser['id']}\n";
+        info += "- Créé: ${lastUser['created_at']}\n";
+      } else {
+        info += "- Aucun utilisateur en base locale\n";
+      }
+    } catch (e) {
+      info += "- Erreur BD: $e\n";
+    }
+
+    setState(() {
+      _debugInfo = info;
+    });
+
+    // Afficher dans un dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🔍 Diagnostic'),
+        content: SingleChildScrollView(
+          child: Text(_debugInfo),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _fixAuthState();
+            },
+            child: const Text('Corriger'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fixAuthState() async {
+    final authProvider = context.read<AuthProvider>();
+
+    try {
+      // Réinitialiser l'authentification
+      await authProvider.initializeAuth();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('État d\'authentification réinitialisé'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -59,8 +162,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final user = authProvider.currentUser;
 
           if (user == null) {
-            return const Center(
-              child: Text('Aucun utilisateur connecté'),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Aucun utilisateur connecté',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: _runQuickDiagnosis,
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('🔍 Diagnostic'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: _fixAuthState,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('🔄 Corriger'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             );
           }
 

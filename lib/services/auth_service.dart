@@ -23,16 +23,22 @@ class AuthService {
   // Vérifier si l'utilisateur est connecté
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_isLoggedInKey) ?? false;
+    final isLoggedIn = prefs.getBool(_isLoggedInKey) ?? false;
+    print('🔍 AuthService.isLoggedIn: $isLoggedIn');
+    return isLoggedIn;
   }
 
   // Obtenir l'utilisateur actuel
   Future<User?> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString(_userIdKey);
+    print('🔍 AuthService.getCurrentUser: userId = $userId');
 
     if (userId != null) {
-      return await _dbHelper.getUserById(userId);
+      final user = await _dbHelper.getUserById(userId);
+      print(
+          '🔍 AuthService.getCurrentUser: user found = ${user != null ? user.email : 'null'}');
+      return user;
     }
     return null;
   }
@@ -223,6 +229,11 @@ class AuthService {
     await prefs.setString(_userIdKey, userId);
     await prefs.setString(_tokenKey, token);
     await prefs.setBool(_isLoggedInKey, true);
+
+    print('🔍 AuthService._saveAuthData saved:');
+    print('  - userId: $userId');
+    print('  - token: ${token.substring(0, 10)}...');
+    print('  - isLoggedIn: true');
   }
 }
 

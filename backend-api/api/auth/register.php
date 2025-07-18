@@ -33,6 +33,7 @@ if (
     $user->gender = $data->gender ?? null;
     $user->location = $data->location ?? null;
     $user->bio = $data->bio ?? null;
+    $user->is_premium = $data->isPremium ?? false;
     $user->preferences = $data->preferences ?? [];
 
     // Vérifier si l'email existe déjà
@@ -66,7 +67,7 @@ if (
                 "isVerified" => false,
                 "createdAt" => $user->created_at,
                 "updatedAt" => $user->updated_at,
-                "isPremium" => false,
+                "isPremium" => (bool)$user->is_premium,
                 "totalBookings" => 0,
                 "averageRating" => 0.0,
                 "totalSavings" => 0.0,

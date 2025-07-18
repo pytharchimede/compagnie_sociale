@@ -36,7 +36,7 @@ class User
         $query = "INSERT INTO " . $this->table_name . "
                 SET id=:id, email=:email, password=:password, full_name=:full_name,
                     phone=:phone, avatar_url=:avatar_url, date_of_birth=:date_of_birth,
-                    gender=:gender, location=:location, bio=:bio,
+                    gender=:gender, location=:location, bio=:bio, is_premium=:is_premium,
                     preferences=:preferences, created_at=:created_at, updated_at=:updated_at";
 
         $stmt = $this->conn->prepare($query);
@@ -50,6 +50,7 @@ class User
         $this->avatar_url = htmlspecialchars(strip_tags($this->avatar_url));
         $this->location = htmlspecialchars(strip_tags($this->location));
         $this->bio = htmlspecialchars(strip_tags($this->bio));
+        $this->is_premium = $this->is_premium ?? false;
         $this->preferences = json_encode($this->preferences ?? []);
         $this->created_at = date('Y-m-d H:i:s');
         $this->updated_at = date('Y-m-d H:i:s');
@@ -65,6 +66,7 @@ class User
         $stmt->bindParam(":gender", $this->gender);
         $stmt->bindParam(":location", $this->location);
         $stmt->bindParam(":bio", $this->bio);
+        $stmt->bindParam(":is_premium", $this->is_premium, PDO::PARAM_BOOL);
         $stmt->bindParam(":preferences", $this->preferences);
         $stmt->bindParam(":created_at", $this->created_at);
         $stmt->bindParam(":updated_at", $this->updated_at);

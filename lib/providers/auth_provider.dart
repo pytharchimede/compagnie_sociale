@@ -17,6 +17,11 @@ class AuthProvider extends ChangeNotifier {
     _initializeAuth();
   }
 
+  // Méthode publique pour réinitialiser l'authentification
+  Future<void> initializeAuth() async {
+    await _initializeAuth();
+  }
+
   Future<void> _initializeAuth() async {
     _setLoading(true);
 

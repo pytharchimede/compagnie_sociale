@@ -1,7 +1,26 @@
--- Script SQL pour créer la base de données Compagnie Sociale CI
--- À exécuter sur votre MySQL tpecloud
+-- Schema SQL optimisé pour tpecloud MariaDB - Compagnie Sociale CI
+-- Version corrigée pour éviter l'erreur 1005 des contraintes de clés étrangères
+-- À exécuter dans phpMyAdmin sur votre hébergement tpecloud
 
--- Table des utilisateurs
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+-- Désactiver temporairement les vérifications de clés étrangères
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- Supprimer les tables existantes si elles existent (dans l'ordre inverse des dépendances)
+DROP TABLE IF EXISTS `reviews`;
+DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `messages`;
+DROP TABLE IF EXISTS `bookings`;
+DROP TABLE IF EXISTS `companions`;
+DROP TABLE IF EXISTS `service_categories`;
+DROP TABLE IF EXISTS `users`;
+
+-- ====================================================================
+-- Table des utilisateurs (table principale - aucune dépendance)
+-- ====================================================================
 CREATE TABLE `users` (
   `id` varchar(36) NOT NULL,
   `email` varchar(255) NOT NULL,
@@ -30,7 +49,23 @@ CREATE TABLE `users` (
   KEY `idx_is_verified` (`is_verified`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table des compagnons
+-- ====================================================================
+-- Table des catégories de services (indépendante)
+-- ====================================================================
+CREATE TABLE `service_categories` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `icon` varchar(50) DEFAULT NULL,
+  `color` varchar(7) DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ====================================================================
+-- Table des compagnons (dépend de users)
+-- ====================================================================
 CREATE TABLE `companions` (
   `id` varchar(36) NOT NULL,
   `user_id` varchar(36) NOT NULL,
@@ -50,11 +85,12 @@ CREATE TABLE `companions` (
   KEY `idx_user_id` (`user_id`),
   KEY `idx_rating` (`rating`),
   KEY `idx_hourly_rate` (`hourly_rate`),
-  KEY `idx_is_available` (`is_available`),
-  CONSTRAINT `fk_companions_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `idx_is_available` (`is_available`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table des réservations
+-- ====================================================================
+-- Table des réservations (dépend de users et companions)
+-- ====================================================================
 CREATE TABLE `bookings` (
   `id` varchar(36) NOT NULL,
   `client_id` varchar(36) NOT NULL,
@@ -76,12 +112,12 @@ CREATE TABLE `bookings` (
   KEY `idx_client_id` (`client_id`),
   KEY `idx_companion_id` (`companion_id`),
   KEY `idx_status` (`status`),
-  KEY `idx_start_datetime` (`start_datetime`),
-  CONSTRAINT `fk_bookings_client_id` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_bookings_companion_id` FOREIGN KEY (`companion_id`) REFERENCES `companions` (`id`) ON DELETE CASCADE
+  KEY `idx_start_datetime` (`start_datetime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table des messages
+-- ====================================================================
+-- Table des messages (dépend de users et bookings)
+-- ====================================================================
 CREATE TABLE `messages` (
   `id` varchar(36) NOT NULL,
   `sender_id` varchar(36) NOT NULL,
@@ -94,25 +130,12 @@ CREATE TABLE `messages` (
   PRIMARY KEY (`id`),
   KEY `idx_sender_receiver` (`sender_id`,`receiver_id`),
   KEY `idx_booking_id` (`booking_id`),
-  KEY `idx_created_at` (`created_at`),
-  CONSTRAINT `fk_messages_sender_id` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_messages_receiver_id` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_messages_booking_id` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE SET NULL
+  KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table des catégories de services
-CREATE TABLE `service_categories` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) NOT NULL,
-  `description` text DEFAULT NULL,
-  `icon` varchar(50) DEFAULT NULL,
-  `color` varchar(7) DEFAULT NULL,
-  `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Table des avis
+-- ====================================================================
+-- Table des avis (dépend de bookings et users)
+-- ====================================================================
 CREATE TABLE `reviews` (
   `id` varchar(36) NOT NULL,
   `booking_id` varchar(36) NOT NULL,
@@ -123,13 +146,12 @@ CREATE TABLE `reviews` (
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_reviewed_id` (`reviewed_id`),
-  KEY `idx_rating` (`rating`),
-  CONSTRAINT `fk_reviews_booking_id` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_reviews_reviewer_id` FOREIGN KEY (`reviewer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_reviews_reviewed_id` FOREIGN KEY (`reviewed_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `idx_rating` (`rating`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table des notifications
+-- ====================================================================
+-- Table des notifications (dépend de users)
+-- ====================================================================
 CREATE TABLE `notifications` (
   `id` varchar(36) NOT NULL,
   `user_id` varchar(36) NOT NULL,
@@ -140,9 +162,44 @@ CREATE TABLE `notifications` (
   `created_at` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`),
-  KEY `idx_is_read` (`is_read`),
-  CONSTRAINT `fk_notifications_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `idx_is_read` (`is_read`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ====================================================================
+-- Ajout des contraintes de clés étrangères APRÈS création des tables
+-- ====================================================================
+
+-- Contraintes pour companions
+ALTER TABLE `companions` 
+ADD CONSTRAINT `fk_companions_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+-- Contraintes pour bookings
+ALTER TABLE `bookings` 
+ADD CONSTRAINT `fk_bookings_client_id` FOREIGN KEY (`client_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_bookings_companion_id` FOREIGN KEY (`companion_id`) REFERENCES `companions` (`id`) ON DELETE CASCADE;
+
+-- Contraintes pour messages
+ALTER TABLE `messages` 
+ADD CONSTRAINT `fk_messages_sender_id` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_messages_receiver_id` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_messages_booking_id` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE SET NULL;
+
+-- Contraintes pour reviews
+ALTER TABLE `reviews` 
+ADD CONSTRAINT `fk_reviews_booking_id` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_reviews_reviewer_id` FOREIGN KEY (`reviewer_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+ADD CONSTRAINT `fk_reviews_reviewed_id` FOREIGN KEY (`reviewed_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+-- Contraintes pour notifications
+ALTER TABLE `notifications` 
+ADD CONSTRAINT `fk_notifications_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+-- Réactiver les vérifications de clés étrangères
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ====================================================================
+-- Insertion des données par défaut
+-- ====================================================================
 
 -- Insérer des catégories de services par défaut
 INSERT INTO `service_categories` (`name`, `description`, `icon`, `color`) VALUES
@@ -156,5 +213,7 @@ INSERT INTO `service_categories` (`name`, `description`, `icon`, `color`) VALUES
 ('Jardinage', 'Services de jardinage et entretien', 'yard', '#4CAF50');
 
 -- Créer un utilisateur admin par défaut (mot de passe: admin123)
-INSERT INTO `users` (`id`, `email`, `password`, `full_name`, `is_verified`, `is_premium`, `preferences`, `created_at`, `updated_at`) VALUES
-('admin-001', 'admin@compagnie-sociale-ci.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrateur', 1, 1, '[]', NOW(), NOW());
+INSERT INTO `users` (`id`, `email`, `password`, `full_name`, `phone`, `location`, `bio`, `is_verified`, `is_premium`, `preferences`, `created_at`, `updated_at`) VALUES
+('admin-001', 'admin@compagnie-sociale-ci.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrateur Système', '+225 07 07 07 07 07', 'Abidjan, Côte d\'Ivoire', 'Compte administrateur principal du système', 1, 1, '[]', NOW(), NOW());
+
+COMMIT;

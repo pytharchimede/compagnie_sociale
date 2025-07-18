@@ -24,13 +24,14 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'compagnie_sociale.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incrémenté pour forcer la migration
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Table utilisateurs
+    // Table utilisateurs avec toutes les colonnes nécessaires
     await db.execute('''
       CREATE TABLE users (
         id TEXT PRIMARY KEY,
@@ -46,7 +47,12 @@ class DatabaseHelper {
         isVerified INTEGER DEFAULT 0,
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
-        lastLoginAt TEXT
+        lastLoginAt TEXT,
+        isPremium INTEGER DEFAULT 0,
+        totalBookings INTEGER DEFAULT 0,
+        averageRating REAL DEFAULT 0.0,
+        totalSavings REAL DEFAULT 0.0,
+        preferences TEXT DEFAULT '[]'
       )
     ''');
 
@@ -139,6 +145,28 @@ class DatabaseHelper {
         .execute('CREATE INDEX idx_sync_queue_synced ON sync_queue(synced)');
   }
 
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Migration vers la version 2 : ajouter les colonnes manquantes à la table users
+      try {
+        await db.execute(
+            'ALTER TABLE users ADD COLUMN isPremium INTEGER DEFAULT 0');
+        await db.execute(
+            'ALTER TABLE users ADD COLUMN totalBookings INTEGER DEFAULT 0');
+        await db.execute(
+            'ALTER TABLE users ADD COLUMN averageRating REAL DEFAULT 0.0');
+        await db.execute(
+            'ALTER TABLE users ADD COLUMN totalSavings REAL DEFAULT 0.0');
+        await db.execute(
+            'ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT \'[]\'');
+        print('Database migration to version 2 completed successfully');
+      } catch (e) {
+        // Si les colonnes existent déjà, ignorer l'erreur
+        print('Migration warning: $e');
+      }
+    }
+  }
+
   // Méthodes pour les utilisateurs
   Future<int> insertUser(User user) async {
     final db = await database;
@@ -180,6 +208,15 @@ class DatabaseHelper {
       user.toJson(),
       where: 'id = ?',
       whereArgs: [user.id],
+    );
+  }
+
+  Future<int> deleteUser(String id) async {
+    final db = await database;
+    return await db.delete(
+      'users',
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 

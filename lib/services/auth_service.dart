@@ -2,10 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 
 class AuthService {
   static const String _baseUrl = 'https://tpecloud.me/cs_api';

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import '../models/user.dart';
@@ -167,10 +166,10 @@ class DatabaseHelper {
             'ALTER TABLE users ADD COLUMN totalSavings REAL DEFAULT 0.0');
         await db.execute(
             'ALTER TABLE users ADD COLUMN preferences TEXT DEFAULT \'[]\'');
-        print('Database migration to version 2 completed successfully');
+        // Database migration to version 2 completed successfully
       } catch (e) {
         // Si les colonnes existent déjà, ignorer l'erreur
-        print('Migration warning: $e');
+        // Migration warning: $e
       }
     }
   }

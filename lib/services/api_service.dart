@@ -337,7 +337,7 @@ class ApiService {
         authHeaders['Authorization'] = 'Bearer $token';
       }
     } catch (e) {
-      print('Erreur lors de la récupération du token: $e');
+      // Erreur lors de la récupération du token: $e (supprimé pour production)
     }
 
     return authHeaders;

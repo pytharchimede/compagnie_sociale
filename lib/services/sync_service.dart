@@ -32,6 +32,7 @@ class SyncService extends ChangeNotifier {
   }
 
   // Arrêter le service
+  @override
   void dispose() {
     _syncTimer?.cancel();
     super.dispose();

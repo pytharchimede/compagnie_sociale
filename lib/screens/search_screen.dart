@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/app_colors.dart';
 import '../providers/companion_provider.dart';
-import '../widgets/companion_card.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -102,7 +101,7 @@ class _SearchScreenState extends State<SearchScreen> {
             itemBuilder: (context, index) {
               final category = companionProvider.categories[index];
               final isSelected = category == companionProvider.selectedCategory;
-              
+
               return Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: FilterChip(
@@ -115,7 +114,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   selectedColor: AppColors.orange,
                   labelStyle: TextStyle(
                     color: isSelected ? AppColors.white : AppColors.darkGray,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
@@ -156,15 +156,15 @@ class _SearchScreenState extends State<SearchScreen> {
                 Text(
                   'Aucun professionnel trouvé',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppColors.mediumGray,
-                  ),
+                        color: AppColors.mediumGray,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Essayez de modifier vos critères de recherche',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.mediumGray,
-                  ),
+                        color: AppColors.mediumGray,
+                      ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -226,7 +226,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             const SizedBox(width: 16),
-            
+
             // Informations
             Expanded(
               child: Column(
@@ -237,9 +237,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       Expanded(
                         child: Text(
                           companion.name,
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                       ),
                       if (companion.verified)
@@ -254,8 +255,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   Text(
                     companion.specialty,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.mediumGray,
-                    ),
+                          color: AppColors.mediumGray,
+                        ),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -279,9 +280,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       Text(
                         '${companion.price.toInt()} FCFA/h',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.orange,
-                          fontWeight: FontWeight.bold,
-                        ),
+                              color: AppColors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -289,7 +290,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: companion.available 
+                          color: companion.available
                               ? AppColors.success.withOpacity(0.1)
                               : AppColors.error.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -297,7 +298,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         child: Text(
                           companion.available ? 'Disponible' : 'Occupé',
                           style: TextStyle(
-                            color: companion.available 
+                            color: companion.available
                                 ? AppColors.success
                                 : AppColors.error,
                             fontSize: 12,
@@ -310,7 +311,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
             ),
-            
+
             // Bouton contact
             IconButton(
               onPressed: () {

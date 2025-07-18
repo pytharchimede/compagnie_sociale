@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/app_colors.dart';
 import '../providers/companion_provider.dart';
 import '../providers/user_provider.dart';
@@ -25,12 +24,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    
+
     _headerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
-    
+
     _cardAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -133,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-                
+
                 // Content
                 Padding(
                   padding: const EdgeInsets.all(24),
@@ -152,22 +151,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 children: [
                                   Text(
                                     'Akwaba ! 👋',
-                                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          color: AppColors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
                                   Text(
                                     user?.name ?? 'Cher utilisateur',
-                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                      color: AppColors.white.withOpacity(0.9),
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(
+                                          color:
+                                              AppColors.white.withOpacity(0.9),
+                                        ),
                                   ),
                                 ],
                               );
                             },
                           ),
-                          
+
                           // Notification icon
                           Container(
                             decoration: BoxDecoration(
@@ -184,9 +190,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         ],
                       ),
-                      
+
                       const Spacer(),
-                      
+
                       // Location
                       Row(
                         children: [
@@ -198,9 +204,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           const SizedBox(width: 4),
                           Text(
                             '📍 Abidjan, Côte d\'Ivoire',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.white.withOpacity(0.9),
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.white.withOpacity(0.9),
+                                ),
                           ),
                         ],
                       ),
@@ -254,14 +263,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Text(
                     'Nos Services',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 16),
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
@@ -320,8 +330,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   Text(
                     'Professionnels en Vedette',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   TextButton(
                     onPressed: () {
@@ -377,16 +387,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Text(
               'Devenir Prestataire',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppColors.white,
-                fontWeight: FontWeight.bold,
-              ),
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
               'Rejoignez notre communauté de professionnels vérifiés et développez votre activité.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.white.withOpacity(0.9),
-              ),
+                    color: AppColors.white.withOpacity(0.9),
+                  ),
             ),
             const SizedBox(height: 16),
             GradientButton(

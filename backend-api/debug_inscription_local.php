@@ -1,37 +1,69 @@
 <?php
 
 /**
- * Script de debug pour l'inscription - Compagnie Sociale CI
- * Ce script va tester étape par étape l'inscription
+ * Script de debug LOCAL pour l'inscription - Compagnie Sociale CI
+ * Ce script va tester étape par étape l'inscription avec une base locale
  */
 
 header('Content-Type: text/html; charset=utf-8');
-echo "<h1>🔍 Debug Inscription - Compagnie Sociale CI</h1>";
+echo "<h1>🔍 Debug Inscription LOCAL - Compagnie Sociale CI</h1>";
 
-// Configuration
-require_once 'config/database.php';
+// Configuration LOCAL
+require_once 'config/database_local.php';
 require_once 'models/User.php';
 
-echo "<h2>1. Test de connexion à la base de données</h2>";
+echo "<h2>1. Test de connexion à la base de données locale</h2>";
 
 try {
     $database = new Database();
     $db = $database->getConnection();
 
     if ($db) {
-        echo "<p style='color: green;'>✅ Connexion à la base de données réussie</p>";
+        echo "<p style='color: green;'>✅ Connexion à la base de données locale réussie</p>";
     } else {
-        echo "<p style='color: red;'>❌ Échec de connexion à la base de données</p>";
+        echo "<p style='color: red;'>❌ Échec de connexion à la base de données locale</p>";
         exit;
     }
 } catch (Exception $e) {
     echo "<p style='color: red;'>❌ Erreur de connexion : " . $e->getMessage() . "</p>";
+    echo "<p style='color: orange;'>💡 Assurez-vous que XAMPP/WAMP est démarré et que la base 'compagnie_sociale_test' existe</p>";
     exit;
 }
 
-echo "<h2>2. Vérification de la structure de la table users</h2>";
+// Créer la table users si elle n'existe pas
+echo "<h2>2. Création/Vérification de la table users</h2>";
 
 try {
+    $create_table_sql = "
+    CREATE TABLE IF NOT EXISTS users (
+        id varchar(36) NOT NULL,
+        email varchar(255) NOT NULL,
+        password varchar(255) NOT NULL,
+        full_name varchar(255) NOT NULL,
+        phone varchar(20) DEFAULT NULL,
+        avatar_url text DEFAULT NULL,
+        date_of_birth date DEFAULT NULL,
+        gender enum('male','female','other') DEFAULT NULL,
+        location varchar(255) DEFAULT NULL,
+        bio text DEFAULT NULL,
+        is_verified tinyint(1) DEFAULT 0,
+        created_at timestamp DEFAULT current_timestamp(),
+        updated_at timestamp DEFAULT current_timestamp(),
+        last_login_at timestamp NULL DEFAULT NULL,
+        is_premium tinyint(1) DEFAULT 0,
+        total_bookings int(11) DEFAULT 0,
+        average_rating decimal(3,2) DEFAULT 0.00,
+        total_savings decimal(10,2) DEFAULT 0.00,
+        preferences longtext DEFAULT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY email (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+
+    $db->exec($create_table_sql);
+    echo "<p style='color: green;'>✅ Table users créée/vérifiée avec succès</p>";
+
+    // Vérifier la structure
     $stmt = $db->prepare("DESCRIBE users");
     $stmt->execute();
     $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -60,16 +92,17 @@ try {
         echo "<p style='color: red;'>❌ Colonne is_premium manquante !</p>";
     }
 } catch (Exception $e) {
-    echo "<p style='color: red;'>❌ Erreur lors de la vérification de structure : " . $e->getMessage() . "</p>";
+    echo "<p style='color: red;'>❌ Erreur lors de la création/vérification de table : " . $e->getMessage() . "</p>";
+    exit;
 }
 
-echo "<h2>3. Test de création d'utilisateur</h2>";
+echo "<h2>3. Test de création d'utilisateur avec méthode corrigée</h2>";
 
 // Données de test
 $test_data = array(
-    "email" => "debug_test_" . time() . "@example.com",
+    "email" => "debug_test_local_" . time() . "@example.com",
     "password" => "password123",
-    "fullName" => "Debug Test User",
+    "fullName" => "Debug Test User Local",
     "phone" => "+225 01 02 03 04 05",
     "isPremium" => false
 );
@@ -83,7 +116,7 @@ try {
 
     echo "<h3>Étape 3.1 : Attribution des valeurs</h3>";
 
-    $user->id = 'debug-' . uniqid();
+    $user->id = 'debug-local-' . uniqid();
     $user->email = $test_data['email'];
     $user->full_name = $test_data['fullName'];
     $user->phone = $test_data['phone'] ?? null;
@@ -112,10 +145,10 @@ try {
     } else {
         echo "<p style='color: green;'>✅ Email disponible</p>";
 
-        echo "<h3>Étape 3.3 : Tentative de création</h3>";
+        echo "<h3>Étape 3.3 : Tentative de création avec méthode CORRIGÉE</h3>";
 
         if ($user->create()) {
-            echo "<p style='color: green;'>🎉 SUCCÈS ! Utilisateur créé avec succès</p>";
+            echo "<p style='color: green;'>🎉 SUCCÈS ! Utilisateur créé avec succès avec la méthode corrigée</p>";
             echo "<p>ID utilisateur : " . $user->id . "</p>";
 
             // Test de lecture
@@ -164,83 +197,13 @@ try {
             $delete_stmt->execute([$user->id]);
             echo "<p style='color: blue;'>🧹 Utilisateur de test supprimé</p>";
         } else {
-            echo "<p style='color: red;'>❌ ÉCHEC ! Impossible de créer l'utilisateur</p>";
+            echo "<p style='color: red;'>❌ ÉCHEC ! La méthode User->create() corrigée a échoué</p>";
 
             // Afficher l'erreur SQL détaillée
             $error_info = $db->errorInfo();
             if ($error_info[2]) {
                 echo "<p style='color: red;'>Erreur SQL : " . $error_info[2] . "</p>";
                 echo "<p style='color: red;'>Code erreur : " . $error_info[1] . "</p>";
-            }
-
-            // Debug de la méthode User->create()
-            echo "<p style='color: blue;'>🔍 Debug de la méthode User->create() :</p>";
-
-            // Affichons tous les champs qui vont être insérés
-            echo "<ul>";
-            echo "<li>id: '" . $user->id . "' (longueur: " . strlen($user->id) . ")</li>";
-            echo "<li>email: '" . $user->email . "' (longueur: " . strlen($user->email) . ")</li>";
-            echo "<li>password: '" . $user->password . "' (sera hashé)</li>";
-            echo "<li>full_name: '" . $user->full_name . "' (longueur: " . strlen($user->full_name) . ")</li>";
-            echo "<li>phone: '" . ($user->phone ?? 'NULL') . "'</li>";
-            echo "<li>avatar_url: '" . ($user->avatar_url ?? 'NULL') . "'</li>";
-            echo "<li>date_of_birth: '" . ($user->date_of_birth ?? 'NULL') . "'</li>";
-            echo "<li>gender: '" . ($user->gender ?? 'NULL') . "'</li>";
-            echo "<li>location: '" . ($user->location ?? 'NULL') . "'</li>";
-            echo "<li>bio: '" . ($user->bio ?? 'NULL') . "'</li>";
-            echo "<li>is_premium: " . ($user->is_premium ? '1' : '0') . " (type: " . gettype($user->is_premium) . ")</li>";
-            echo "<li>preferences: " . json_encode($user->preferences) . " (type: " . gettype($user->preferences) . ")</li>";
-            echo "</ul>";
-
-            // Testons une insertion manuelle pour identifier le problème
-            echo "<p style='color: blue;'>🧪 Test d'insertion manuelle :</p>";
-
-            try {
-                $manual_query = "INSERT INTO users (id, email, password, full_name, phone, is_premium, preferences, created_at, updated_at) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-                $manual_stmt = $db->prepare($manual_query);
-                if (!$manual_stmt) {
-                    echo "<p style='color: red;'>❌ Erreur préparation requête : " . implode(', ', $db->errorInfo()) . "</p>";
-                } else {
-                    $hashed_password = password_hash($user->password, PASSWORD_DEFAULT);
-                    $created_at = date('Y-m-d H:i:s');
-                    $preferences_json = json_encode($user->preferences ?? []);
-
-                    echo "<p>Tentative d'insertion avec :</p>";
-                    echo "<ul>";
-                    echo "<li>Password hashé: " . substr($hashed_password, 0, 20) . "...</li>";
-                    echo "<li>created_at: $created_at</li>";
-                    echo "<li>preferences: $preferences_json</li>";
-                    echo "</ul>";
-
-                    $result = $manual_stmt->execute([
-                        $user->id,
-                        $user->email,
-                        $hashed_password,
-                        $user->full_name,
-                        $user->phone,
-                        $user->is_premium ? 1 : 0,
-                        $preferences_json,
-                        $created_at,
-                        $created_at
-                    ]);
-
-                    if ($result) {
-                        echo "<p style='color: green;'>✅ Insertion manuelle réussie !</p>";
-                        echo "<p style='color: orange;'>⚠️ Le problème vient de la méthode User->create()</p>";
-
-                        // Nettoyer l'entrée de test
-                        $cleanup = $db->prepare("DELETE FROM users WHERE id = ?");
-                        $cleanup->execute([$user->id]);
-                        echo "<p style='color: blue;'>🧹 Test nettoyé</p>";
-                    } else {
-                        $manual_error = $manual_stmt->errorInfo();
-                        echo "<p style='color: red;'>❌ Insertion manuelle échouée : " . $manual_error[2] . "</p>";
-                    }
-                }
-            } catch (Exception $manual_e) {
-                echo "<p style='color: red;'>Exception lors de l'insertion manuelle : " . $manual_e->getMessage() . "</p>";
             }
         }
     }
@@ -250,5 +213,10 @@ try {
 }
 
 echo "<h2>4. Résumé du diagnostic</h2>";
-echo "<p>Si toutes les étapes sont en ✅ vert, alors l'API d'inscription fonctionne parfaitement.</p>";
-echo "<p>Si une étape est en ❌ rouge, c'est là que se trouve le problème.</p>";
+echo "<p>🔧 Ce test utilise la méthode User->create() CORRIGÉE avec :</p>";
+echo "<ul>";
+echo "<li>✅ PDO::PARAM_INT pour is_premium au lieu de PDO::PARAM_BOOL</li>";
+echo "<li>✅ Nettoyage amélioré des champs optionnels</li>";
+echo "<li>✅ Conversion explicite boolean → entier pour is_premium</li>";
+echo "</ul>";
+echo "<p>Si ce test réussit, la correction est validée ! 🎯</p>";

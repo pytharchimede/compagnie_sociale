@@ -46,11 +46,15 @@ class User
         $this->email = htmlspecialchars(strip_tags($this->email));
         $this->password = password_hash($this->password, PASSWORD_DEFAULT);
         $this->full_name = htmlspecialchars(strip_tags($this->full_name));
-        $this->phone = htmlspecialchars(strip_tags($this->phone));
-        $this->avatar_url = htmlspecialchars(strip_tags($this->avatar_url));
-        $this->location = htmlspecialchars(strip_tags($this->location));
-        $this->bio = htmlspecialchars(strip_tags($this->bio));
-        $this->is_premium = $this->is_premium ?? false;
+
+        // Nettoyer les champs optionnels seulement s'ils ne sont pas null
+        $this->phone = $this->phone ? htmlspecialchars(strip_tags($this->phone)) : null;
+        $this->avatar_url = $this->avatar_url ? htmlspecialchars(strip_tags($this->avatar_url)) : null;
+        $this->location = $this->location ? htmlspecialchars(strip_tags($this->location)) : null;
+        $this->bio = $this->bio ? htmlspecialchars(strip_tags($this->bio)) : null;
+
+        // Convertir is_premium en entier pour MariaDB/MySQL
+        $this->is_premium = ($this->is_premium ?? false) ? 1 : 0;
         $this->preferences = json_encode($this->preferences ?? []);
         $this->created_at = date('Y-m-d H:i:s');
         $this->updated_at = date('Y-m-d H:i:s');
@@ -66,7 +70,7 @@ class User
         $stmt->bindParam(":gender", $this->gender);
         $stmt->bindParam(":location", $this->location);
         $stmt->bindParam(":bio", $this->bio);
-        $stmt->bindParam(":is_premium", $this->is_premium, PDO::PARAM_BOOL);
+        $stmt->bindParam(":is_premium", $this->is_premium, PDO::PARAM_INT);
         $stmt->bindParam(":preferences", $this->preferences);
         $stmt->bindParam(":created_at", $this->created_at);
         $stmt->bindParam(":updated_at", $this->updated_at);

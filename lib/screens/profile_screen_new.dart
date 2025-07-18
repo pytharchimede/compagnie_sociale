@@ -53,9 +53,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Consumer<AuthProvider>(
+      body: Consumer<AuthProvider?>(
         builder: (context, authProvider, child) {
-          final user = authProvider.currentUser;
+          final user = authProvider?.currentUser;
 
           if (user == null) {
             return const Center(

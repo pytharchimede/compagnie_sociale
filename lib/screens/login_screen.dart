@@ -38,11 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await _authService.login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        _emailController.text.trim(),
+        _passwordController.text,
       );
 
-      if (result.isSuccess) {
+      if (result['success'] == true) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const MainScreen()),
@@ -52,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result.error ?? 'Erreur de connexion'),
+              content: Text(result['message'] ?? 'Erreur de connexion'),
               backgroundColor: Colors.red,
             ),
           );
@@ -61,8 +61,8 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: $e'),
+          const SnackBar(
+            content: Text('Erreur de connexion'),
             backgroundColor: Colors.red,
           ),
         );

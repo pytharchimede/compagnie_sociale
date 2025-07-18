@@ -5,7 +5,6 @@ import '../models/user.dart';
 import '../models/companion.dart';
 import '../models/booking.dart';
 import '../models/message.dart';
-import 'auth_service.dart';
 
 class ApiService {
   // IMPORTANT: Remplacez par votre domaine tpecloud
@@ -18,7 +17,7 @@ class ApiService {
   };
 
   // Auth endpoints
-  Future<AuthResult> registerUser(User user) async {
+  Future<Map<String, dynamic>> registerUser(User user) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/register'),
@@ -28,18 +27,27 @@ class ApiService {
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
-        final registeredUser = User.fromJson(data['user']);
-        return AuthResult.success(registeredUser, data['token']);
+        return {
+          'success': true,
+          'user': data['user'],
+          'token': data['token'],
+        };
       } else {
         final error = json.decode(response.body);
-        return AuthResult.error(error['message'] ?? 'Erreur d\'inscription');
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Erreur d\'inscription',
+        };
       }
     } catch (e) {
-      throw Exception('Erreur de connexion: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion: $e',
+      };
     }
   }
 
-  Future<AuthResult> loginUser(String email, String password) async {
+  Future<Map<String, dynamic>> loginUser(String email, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
@@ -52,14 +60,23 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final user = User.fromJson(data['user']);
-        return AuthResult.success(user, data['token']);
+        return {
+          'success': true,
+          'user': data['user'],
+          'token': data['token'],
+        };
       } else {
         final error = json.decode(response.body);
-        return AuthResult.error(error['message'] ?? 'Erreur de connexion');
+        return {
+          'success': false,
+          'message': error['message'] ?? 'Erreur de connexion',
+        };
       }
     } catch (e) {
-      throw Exception('Erreur de connexion: $e');
+      return {
+        'success': false,
+        'message': 'Erreur de connexion: $e',
+      };
     }
   }
 

@@ -46,13 +46,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final result = await _authService.register(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        fullName: _fullNameController.text.trim(),
+        firstName: _fullNameController.text.trim().split(' ').first,
+        lastName: _fullNameController.text.trim().split(' ').length > 1
+            ? _fullNameController.text.trim().split(' ').skip(1).join(' ')
+            : '',
         phone: _phoneController.text.trim().isNotEmpty
             ? _phoneController.text.trim()
-            : null,
+            : '',
       );
 
-      if (result.isSuccess) {
+      if (result['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -69,8 +72,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content:
-                  Text(result.error ?? 'Erreur lors de la création du compte'),
+              content: Text(
+                  result['message'] ?? 'Erreur lors de la création du compte'),
               backgroundColor: Colors.red,
             ),
           );

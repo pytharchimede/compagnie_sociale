@@ -5,7 +5,6 @@ import 'search_screen.dart';
 import 'bookings_screen.dart';
 import 'messages_screen.dart';
 import 'profile_screen.dart';
-import '../widgets/simple_debug_widget.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -172,18 +171,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             ),
           ),
         ),
-      ),
-      // Bouton debug temporaire - À SUPPRIMER EN PRODUCTION
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const SimpleDebugWidget(),
-            ),
-          );
-        },
-        backgroundColor: Colors.red,
-        child: const Icon(Icons.bug_report, color: Colors.white),
       ),
     );
   }

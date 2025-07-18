@@ -19,7 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _debugInfo = "";
 
   Future<void> _runQuickDiagnosis() async {
-    final authProvider = context.read<AuthProvider>();
+    final authProvider = context.read<AuthProvider?>();
     final authService = AuthService();
     final dbHelper = DatabaseHelper();
 
@@ -27,9 +27,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // AuthProvider state
     info += "📱 AuthProvider:\n";
-    info += "- isLoggedIn: ${authProvider.isLoggedIn}\n";
-    info += "- currentUser: ${authProvider.currentUser?.email ?? 'null'}\n";
-    info += "- isLoading: ${authProvider.isLoading}\n\n";
+    if (authProvider != null) {
+      info += "- isLoggedIn: ${authProvider.isLoggedIn}\n";
+      info += "- currentUser: ${authProvider.currentUser?.email ?? 'null'}\n";
+      info += "- isLoading: ${authProvider.isLoading}\n\n";
+    } else {
+      info += "- AuthProvider not found\n\n";
+    }
 
     // AuthService state
     info += "🔐 AuthService:\n";
@@ -37,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final isLoggedIn = await authService.isLoggedIn();
       final currentUser = await authService.getCurrentUser();
       info += "- isLoggedIn: $isLoggedIn\n";
-      info += "- currentUser: ${currentUser?.email ?? 'null'}\n\n";
+      info += "- currentUser: ${currentUser?['email'] ?? 'null'}\n\n";
     } catch (e) {
       info += "- Erreur: $e\n\n";
     }
@@ -95,25 +99,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _fixAuthState() async {
-    final authProvider = context.read<AuthProvider>();
+    final authProvider = context.read<AuthProvider?>();
 
     try {
       // Réinitialiser l'authentification
-      await authProvider.initializeAuth();
+      if (authProvider != null) {
+        await authProvider.initializeAuth();
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('État d\'authentification réinitialisé'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('État d\'authentification réinitialisé'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -157,9 +167,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Consumer<AuthProvider>(
+      body: Consumer<AuthProvider?>(
         builder: (context, authProvider, child) {
-          final user = authProvider.currentUser;
+          final user = authProvider?.currentUser;
 
           if (user == null) {
             return Center(

@@ -1,268 +1,322 @@
 import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import '../database/database_helper.dart';
-import '../models/user.dart';
-import '../services/api_service.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:path/path.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class AuthService {
-  static final AuthService _instance = AuthService._internal();
-  static const String _tokenKey = 'auth_token';
-  static const String _userIdKey = 'user_id';
-  static const String _isLoggedInKey = 'is_logged_in';
+  static const String _baseUrl = 'https://tpecloud.me/cs_api';
+  static Database? _database;
 
-  AuthService._internal();
-
-  factory AuthService() => _instance;
-
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-  final ApiService _apiService = ApiService();
-  final Uuid _uuid = const Uuid();
-
-  // Vérifier si l'utilisateur est connecté
-  Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool(_isLoggedInKey) ?? false;
-    print('🔍 AuthService.isLoggedIn: $isLoggedIn');
-    return isLoggedIn;
-  }
-
-  // Obtenir l'utilisateur actuel
-  Future<User?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString(_userIdKey);
-    print('🔍 AuthService.getCurrentUser: userId = $userId');
-
-    if (userId != null) {
-      final user = await _dbHelper.getUserById(userId);
-      print(
-          '🔍 AuthService.getCurrentUser: user found = ${user != null ? user.email : 'null'}');
-      return user;
+  // Vérifier la connectivité réseau avec timeout court
+  Future<bool> checkConnectivity() async {
+    try {
+      final result = await http.get(
+        Uri.parse('$_baseUrl/test.php'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 3));
+      return result.statusCode == 200;
+    } catch (e) {
+      return false;
     }
-    return null;
   }
 
-  // Inscription
-  Future<AuthResult> register({
+  // Initialiser la base de données locale
+  Future<Database> _initDatabase() async {
+    if (_database != null) return _database!;
+
+    // Configuration pour Windows
+    if (Platform.isWindows || Platform.isLinux) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+
+    final databasesPath = await getDatabasesPath();
+    final path = join(databasesPath, 'compagnie_sociale.db');
+
+    _database = await openDatabase(
+      path,
+      version: 2,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            firstName TEXT,
+            lastName TEXT,
+            phone TEXT,
+            profileImageUrl TEXT,
+            isPremium INTEGER DEFAULT 0,
+            createdAt TEXT,
+            needsSync INTEGER DEFAULT 0
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+              'ALTER TABLE users ADD COLUMN isPremium INTEGER DEFAULT 0');
+        }
+      },
+    );
+
+    return _database!;
+  }
+
+  // Inscription - nécessite une connexion Internet
+  Future<Map<String, dynamic>> register({
     required String email,
     required String password,
-    required String fullName,
-    String? phone,
+    required String firstName,
+    required String lastName,
+    required String phone,
   }) async {
-    try {
-      // Vérifier si l'utilisateur existe déjà localement
-      final existingUser = await _dbHelper.getUserByEmail(email);
-      if (existingUser != null) {
-        return AuthResult.error('Un compte avec cet email existe déjà');
-      }
+    final hasConnection = await checkConnectivity();
+    if (!hasConnection) {
+      return {
+        'success': false,
+        'message': 'Connexion Internet requise pour l\'inscription'
+      };
+    }
 
-      // Créer un nouvel utilisateur
-      final user = User(
-        id: _uuid.v4(),
-        email: email,
-        password: _hashPassword(password),
-        fullName: fullName,
-        phone: phone,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/register.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+          'firstName': firstName,
+          'lastName': lastName,
+          'phone': phone,
+        }),
       );
 
-      // Sauvegarder localement
-      await _dbHelper.insertUser(user);
+      final data = jsonDecode(response.body);
 
-      // Tenter de synchroniser avec l'API
-      try {
-        await _apiService.registerUser(user);
-      } catch (e) {
-        // Si l'API échoue, ajouter à la queue de synchronisation
-        await _dbHelper.addToSyncQueue(
-            'users', user.id, 'INSERT', user.toJson());
+      if (data['success']) {
+        // Sauvegarder localement
+        final db = await _initDatabase();
+        await db.insert('users', {
+          'email': email,
+          'password': password,
+          'firstName': firstName,
+          'lastName': lastName,
+          'phone': phone,
+          'isPremium': 0,
+          'createdAt': DateTime.now().toIso8601String(),
+          'needsSync': 0,
+        });
+
+        // Sauvegarder l'état de connexion
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('userEmail', email);
       }
 
-      // Connecter l'utilisateur
-      await _saveAuthData(user.id, 'local_token_${user.id}');
-
-      return AuthResult.success(user);
+      return data;
     } catch (e) {
-      return AuthResult.error('Erreur lors de l\'inscription: $e');
+      return {'success': false, 'message': 'Erreur de connexion au serveur'};
     }
   }
 
-  // Connexion
-  Future<AuthResult> login({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final hashedPassword = _hashPassword(password);
+  // Connexion - avec fallback local automatique
+  Future<Map<String, dynamic>> login(String email, String password) async {
+    final hasConnection = await checkConnectivity();
 
-      // D'abord, essayer avec l'API
+    if (hasConnection) {
       try {
-        final apiResponse = await _apiService.loginUser(email, password);
-        if (apiResponse.isSuccess && apiResponse.user != null) {
-          // Mettre à jour l'utilisateur local
-          await _dbHelper.updateUser(apiResponse.user!);
-          await _saveAuthData(apiResponse.user!.id, apiResponse.token!);
-          return AuthResult.success(apiResponse.user!);
+        final response = await http.post(
+          Uri.parse('$_baseUrl/login.php'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email,
+            'password': password,
+          }),
+        );
+
+        final data = jsonDecode(response.body);
+
+        if (data['success']) {
+          // Mettre à jour/sauvegarder localement
+          final db = await _initDatabase();
+          final existingUser = await db.query(
+            'users',
+            where: 'email = ?',
+            whereArgs: [email],
+          );
+
+          if (existingUser.isNotEmpty) {
+            await db.update(
+              'users',
+              {
+                'password': password,
+                'firstName': data['user']['firstName'],
+                'lastName': data['user']['lastName'],
+                'phone': data['user']['phone'],
+                'isPremium': data['user']['isPremium'] ?? 0,
+                'needsSync': 0,
+              },
+              where: 'email = ?',
+              whereArgs: [email],
+            );
+          } else {
+            await db.insert('users', {
+              'email': email,
+              'password': password,
+              'firstName': data['user']['firstName'],
+              'lastName': data['user']['lastName'],
+              'phone': data['user']['phone'],
+              'isPremium': data['user']['isPremium'] ?? 0,
+              'createdAt': DateTime.now().toIso8601String(),
+              'needsSync': 0,
+            });
+          }
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+          await prefs.setString('userEmail', email);
+
+          return data;
         }
+
+        return data;
       } catch (e) {
-        print('Connexion API échouée, tentative hors ligne: $e');
+        // En cas d'erreur réseau, essayer la connexion locale
       }
-
-      // Ensuite, essayer hors ligne
-      final user = await _dbHelper.getUserByEmail(email);
-      if (user != null && user.password == hashedPassword) {
-        // Mettre à jour la dernière connexion
-        final updatedUser = user.copyWith(lastLoginAt: DateTime.now());
-        await _dbHelper.updateUser(updatedUser);
-
-        await _saveAuthData(user.id, 'local_token_${user.id}');
-        return AuthResult.success(updatedUser);
-      }
-
-      return AuthResult.error('Email ou mot de passe incorrect');
-    } catch (e) {
-      return AuthResult.error('Erreur lors de la connexion: $e');
     }
+
+    // Connexion locale (fallback automatique)
+    try {
+      final db = await _initDatabase();
+      final users = await db.query(
+        'users',
+        where: 'email = ? AND password = ?',
+        whereArgs: [email, password],
+      );
+
+      if (users.isNotEmpty) {
+        final user = users.first;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('userEmail', email);
+
+        return {
+          'success': true,
+          'message': 'Connexion réussie (mode hors ligne)',
+          'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'firstName': user['firstName'],
+            'lastName': user['lastName'],
+            'phone': user['phone'],
+            'isPremium': user['isPremium'],
+          }
+        };
+      }
+
+      return {'success': false, 'message': 'Email ou mot de passe incorrect'};
+    } catch (e) {
+      return {'success': false, 'message': 'Erreur de base de données locale'};
+    }
+  }
+
+  // Synchronisation en arrière-plan (non-bloquante)
+  Future<void> _syncPendingDataInBackground() async {
+    final hasConnection = await checkConnectivity();
+    if (!hasConnection) return;
+
+    try {
+      final db = await _initDatabase();
+      final pendingUsers = await db.query(
+        'users',
+        where: 'needsSync = ?',
+        whereArgs: [1],
+      );
+
+      for (final user in pendingUsers) {
+        try {
+          await http.post(
+            Uri.parse('$_baseUrl/sync_user.php'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(user),
+          );
+
+          await db.update(
+            'users',
+            {'needsSync': 0},
+            where: 'id = ?',
+            whereArgs: [user['id']],
+          );
+        } catch (e) {
+          // Continuer avec les autres utilisateurs
+        }
+      }
+    } catch (e) {
+      // Synchronisation échouée, réessayer plus tard
+    }
+  }
+
+  // Synchronisation automatique (appelée par le Timer)
+  Future<void> performAutoSync() async {
+    await _syncPendingDataInBackground();
   }
 
   // Déconnexion
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_userIdKey);
-    await prefs.setBool(_isLoggedInKey, false);
+    await prefs.remove('isLoggedIn');
+    await prefs.remove('userEmail');
   }
 
-  // Mise à jour du profil
-  Future<AuthResult> updateProfile(User updatedUser) async {
-    try {
-      // Mettre à jour localement
-      await _dbHelper.updateUser(updatedUser);
-
-      // Tenter de synchroniser avec l'API
-      try {
-        await _apiService.updateUser(updatedUser);
-      } catch (e) {
-        // Si l'API échoue, ajouter à la queue de synchronisation
-        await _dbHelper.addToSyncQueue(
-            'users', updatedUser.id, 'UPDATE', updatedUser.toJson());
-      }
-
-      return AuthResult.success(updatedUser);
-    } catch (e) {
-      return AuthResult.error('Erreur lors de la mise à jour: $e');
-    }
+  // Vérifier si l'utilisateur est connecté
+  Future<bool> isLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('isLoggedIn') ?? false;
   }
 
-  // Changer le mot de passe
-  Future<AuthResult> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
+  // Obtenir l'utilisateur actuel
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('userEmail');
+
+    if (email == null) return null;
+
     try {
-      final user = await getCurrentUser();
-      if (user == null) {
-        return AuthResult.error('Utilisateur non connecté');
-      }
-
-      // Vérifier le mot de passe actuel
-      if (user.password != _hashPassword(currentPassword)) {
-        return AuthResult.error('Mot de passe actuel incorrect');
-      }
-
-      // Mettre à jour le mot de passe
-      final updatedUser = user.copyWith(
-        password: _hashPassword(newPassword),
-        updatedAt: DateTime.now(),
+      final db = await _initDatabase();
+      final users = await db.query(
+        'users',
+        where: 'email = ?',
+        whereArgs: [email],
       );
 
-      return await updateProfile(updatedUser);
-    } catch (e) {
-      return AuthResult.error('Erreur lors du changement de mot de passe: $e');
-    }
-  }
-
-  // Synchronisation avec l'API
-  Future<void> syncPendingData() async {
-    try {
-      final pendingItems = await _dbHelper.getPendingSyncItems();
-
-      for (final item in pendingItems) {
-        try {
-          switch (item['tableName']) {
-            case 'users':
-              if (item['action'] == 'INSERT') {
-                final userData = json.decode(item['data']);
-                final user = User.fromJson(userData);
-                await _apiService.registerUser(user);
-              } else if (item['action'] == 'UPDATE') {
-                final userData = json.decode(item['data']);
-                final user = User.fromJson(userData);
-                await _apiService.updateUser(user);
-              }
-              break;
-            // Ajouter d'autres cas pour companions, bookings, etc.
-          }
-
-          // Marquer comme synchronisé
-          await _dbHelper.markAsSynced(item['id']);
-        } catch (e) {
-          print('Erreur de synchronisation pour ${item['tableName']}: $e');
-        }
+      if (users.isNotEmpty) {
+        final user = users.first;
+        return {
+          'id': user['id'],
+          'email': user['email'],
+          'firstName': user['firstName'],
+          'lastName': user['lastName'],
+          'phone': user['phone'],
+          'isPremium': user['isPremium'],
+        };
       }
     } catch (e) {
-      print('Erreur lors de la synchronisation: $e');
+      // Erreur de base de données
     }
+
+    return null;
   }
 
-  // Méthodes privées
-  String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
-
-  Future<void> _saveAuthData(String userId, String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userIdKey, userId);
-    await prefs.setString(_tokenKey, token);
-    await prefs.setBool(_isLoggedInKey, true);
-
-    print('🔍 AuthService._saveAuthData saved:');
-    print('  - userId: $userId');
-    print('  - token: ${token.substring(0, 10)}...');
-    print('  - isLoggedIn: true');
-  }
-}
-
-// Classe pour les résultats d'authentification
-class AuthResult {
-  final bool isSuccess;
-  final String? error;
-  final User? user;
-  final String? token;
-
-  AuthResult._({
-    required this.isSuccess,
-    this.error,
-    this.user,
-    this.token,
-  });
-
-  factory AuthResult.success(User user, [String? token]) {
-    return AuthResult._(
-      isSuccess: true,
-      user: user,
-      token: token,
-    );
-  }
-
-  factory AuthResult.error(String error) {
-    return AuthResult._(
-      isSuccess: false,
-      error: error,
-    );
+  // Nettoyer les ressources
+  Future<void> dispose() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
   }
 }

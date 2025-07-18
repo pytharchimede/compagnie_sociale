@@ -214,6 +214,6 @@ INSERT INTO `service_categories` (`name`, `description`, `icon`, `color`) VALUES
 
 -- Créer un utilisateur admin par défaut (mot de passe: admin123)
 INSERT INTO `users` (`id`, `email`, `password`, `full_name`, `phone`, `location`, `bio`, `is_verified`, `is_premium`, `preferences`, `created_at`, `updated_at`) VALUES
-('admin-001', 'admin@compagnie-sociale-ci.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrateur Système', '+225 07 07 07 07 07', 'Abidjan, Côte d\'Ivoire', 'Compte administrateur principal du système', 1, 1, '[]', NOW(), NOW());
+('admin-001', 'admin@fidest.ci', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrateur Système', '+225 07 07 07 07 07', 'Abidjan, Côte d\'Ivoire', 'Compte administrateur principal du système', 1, 1, '[]', NOW(), NOW());
 
 COMMIT;

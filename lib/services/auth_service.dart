@@ -6,19 +6,32 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 
 class AuthService {
-  static const String _baseUrl = 'https://tpecloud.me/cs_api';
+  static const String _baseUrl = 'https://fidest.ci/rencontre/backend-api/api';
   static Database? _database;
 
   // Vérifier la connectivité réseau avec timeout court
   Future<bool> checkConnectivity() async {
     try {
+      // Test direct avec notre API pour éviter les problèmes de certificats
       final result = await http.get(
-        Uri.parse('$_baseUrl/test.php'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 3));
-      return result.statusCode == 200;
+        Uri.parse('$_baseUrl/login.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'CompagnieSociale/1.0',
+        },
+      ).timeout(const Duration(seconds: 8));
+      return result.statusCode >= 200 && result.statusCode < 500;
     } catch (e) {
-      return false;
+      // Si notre API échoue, essayer un test simple
+      try {
+        final result = await http.get(
+          Uri.parse('https://httpbin.org/status/200'),
+          headers: {'User-Agent': 'CompagnieSociale/1.0'},
+        ).timeout(const Duration(seconds: 5));
+        return result.statusCode == 200;
+      } catch (e2) {
+        return false;
+      }
     }
   }
 
@@ -65,7 +78,7 @@ class AuthService {
     return _database!;
   }
 
-  // Inscription - nécessite une connexion Internet
+  // Inscription - essaie directement, le test de connectivité se fait via l'API
   Future<Map<String, dynamic>> register({
     required String email,
     required String password,
@@ -73,31 +86,59 @@ class AuthService {
     required String lastName,
     required String phone,
   }) async {
-    final hasConnection = await checkConnectivity();
-    if (!hasConnection) {
-      return {
-        'success': false,
-        'message': 'Connexion Internet requise pour l\'inscription'
-      };
-    }
-
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/register.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-          'firstName': firstName,
-          'lastName': lastName,
-          'phone': phone,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/register.php'),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'CompagnieSociale/1.0',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+              'firstName': firstName,
+              'lastName': lastName,
+              'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
-      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
 
-      if (data['success']) {
-        // Sauvegarder localement
+        if (data['success'] == true) {
+          // Sauvegarder localement
+          final db = await _initDatabase();
+          await db.insert('users', {
+            'email': email,
+            'password': password,
+            'firstName': firstName,
+            'lastName': lastName,
+            'phone': phone,
+            'isPremium': 0,
+            'createdAt': DateTime.now().toIso8601String(),
+            'needsSync': 0,
+          });
+
+          // Sauvegarder l'état de connexion
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+          await prefs.setString('userEmail', email);
+        }
+
+        return data;
+      } else {
+        return {
+          'success': false,
+          'message':
+              'Erreur serveur (${response.statusCode}). Vérifiez votre connexion.'
+        };
+      }
+    } catch (e) {
+      // Inscription hors ligne temporaire pour les tests
+      try {
         final db = await _initDatabase();
         await db.insert('users', {
           'email': email,
@@ -107,18 +148,24 @@ class AuthService {
           'phone': phone,
           'isPremium': 0,
           'createdAt': DateTime.now().toIso8601String(),
-          'needsSync': 0,
+          'needsSync': 1, // Marquer pour synchronisation ultérieure
         });
 
-        // Sauvegarder l'état de connexion
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
         await prefs.setString('userEmail', email);
-      }
 
-      return data;
-    } catch (e) {
-      return {'success': false, 'message': 'Erreur de connexion au serveur'};
+        return {
+          'success': true,
+          'message':
+              'Compte créé en mode hors ligne. Sera synchronisé dès la connexion.'
+        };
+      } catch (dbError) {
+        return {
+          'success': false,
+          'message': 'Erreur: Vérifiez votre connexion Internet et réessayez.'
+        };
+      }
     }
   }
 

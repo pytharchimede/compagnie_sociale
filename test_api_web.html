@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Compagnie Sociale</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .test-section { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { color: blue; }
+        pre { background: #333; color: white; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { background: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; margin: 5px; }
+        button:hover { background: #1976D2; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test API Compagnie Sociale CI</h1>
+    
+    <div class="test-section">
+        <h2>Configuration</h2>
+        <p><strong>API Base URL:</strong> <span id="apiUrl">https://fidest.ci/rencontre/backend-api/api</span></p>
+        <p><strong>Email de test:</strong> <input type="email" id="testEmail" value="test_web@example.com" style="width: 250px;"></p>
+        <p><strong>Mot de passe:</strong> <input type="password" id="testPassword" value="test123456" style="width: 150px;"></p>
+    </div>
+
+    <div class="test-section">
+        <h2>Tests Automatiques</h2>
+        <button onclick="runAllTests()">🚀 Lancer tous les tests</button>
+        <button onclick="clearResults()">🧹 Effacer les résultats</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Tests Manuels</h2>
+        <button onclick="testConnectivity()">1. Test de connectivité</button>
+        <button onclick="testRegister()">2. Test d'inscription</button>
+        <button onclick="testLogin()">3. Test de connexion</button>
+        <button onclick="testSync()">4. Test de synchronisation</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'https://fidest.ci/rencontre/backend-api/api';
+        let currentUserId = null;
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            results.innerHTML += `<div class="${className}">${message}</div>`;
+            console.log(message);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function makeRequest(endpoint, data = null, method = 'GET') {
+            const url = `${API_BASE}/${endpoint}`;
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            };
+
+            if (data && method === 'POST') {
+                options.body = JSON.stringify(data);
+            }
+
+            try {
+                log(`📡 ${method} ${url}`);
+                if (data) {
+                    log(`📤 Données envoyées: <pre>${JSON.stringify(data, null, 2)}</pre>`);
+                }
+
+                const response = await fetch(url, options);
+                const responseText = await response.text();
+                
+                log(`📥 Status: ${response.status}`);
+                log(`📥 Réponse: <pre>${responseText}</pre>`);
+
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    log(`⚠️ Réponse non-JSON: ${responseText}`, 'error');
+                    return { success: false, error: 'Réponse non-JSON' };
+                }
+
+                if (response.status === 200) {
+                    log(`✅ Succès!`, 'success');
+                    return responseData;
+                } else {
+                    log(`❌ Erreur HTTP ${response.status}`, 'error');
+                    return responseData;
+                }
+            } catch (error) {
+                log(`❌ Erreur réseau: ${error.message}`, 'error');
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function testConnectivity() {
+            log('<h3>🔌 Test de connectivité</h3>');
+            const result = await makeRequest('debug.php');
+            if (result.success) {
+                log('✅ API accessible et fonctionnelle', 'success');
+            } else {
+                log('❌ API non accessible', 'error');
+            }
+            log('<hr>');
+        }
+
+        async function testRegister() {
+            log('<h3>📝 Test d\'inscription</h3>');
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+            
+            const data = {
+                email: email,
+                password: password,
+                firstName: 'TestWeb',
+                lastName: 'User',
+                phone: '0123456789'
+            };
+
+            const result = await makeRequest('register.php', data, 'POST');
+            if (result.success) {
+                log('✅ Inscription réussie', 'success');
+                if (result.user && result.user.id) {
+                    currentUserId = result.user.id;
+                    log(`🆔 ID utilisateur: ${currentUserId}`, 'info');
+                }
+            } else {
+                log(`❌ Inscription échouée: ${result.message}`, 'error');
+            }
+            log('<hr>');
+        }
+
+        async function testLogin() {
+            log('<h3>🔐 Test de connexion</h3>');
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+
+            const data = {
+                email: email,
+                password: password
+            };
+
+            const result = await makeRequest('login.php', data, 'POST');
+            if (result.success) {
+                log('✅ Connexion réussie', 'success');
+                if (result.user && result.user.id) {
+                    currentUserId = result.user.id;
+                    log(`🆔 ID utilisateur connecté: ${currentUserId}`, 'info');
+                }
+            } else {
+                log(`❌ Connexion échouée: ${result.message}`, 'error');
+            }
+            log('<hr>');
+        }
+
+        async function testSync() {
+            log('<h3>🔄 Test de synchronisation</h3>');
+            
+            if (!currentUserId) {
+                log('❌ Pas d\'ID utilisateur. Faites d\'abord l\'inscription ou la connexion.', 'error');
+                return;
+            }
+
+            const email = document.getElementById('testEmail').value;
+            const data = {
+                user: {
+                    id: currentUserId,
+                    email: email,
+                    firstName: 'TestSync',
+                    lastName: 'UserSync',
+                    phone: '0987654321',
+                    isPremium: true,
+                    preferences: ['theme: dark']
+                }
+            };
+
+            const result = await makeRequest('sync_user.php', data, 'POST');
+            if (result.success) {
+                log('✅ Synchronisation réussie', 'success');
+            } else {
+                log(`❌ Synchronisation échouée: ${result.message}`, 'error');
+            }
+            log('<hr>');
+        }
+
+        async function runAllTests() {
+            clearResults();
+            log('<h2>🚀 Lancement de tous les tests</h2>');
+            
+            // Générer un email unique pour éviter les conflits
+            const timestamp = new Date().getTime();
+            document.getElementById('testEmail').value = `test_${timestamp}@example.com`;
+            
+            await testConnectivity();
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Pause 1s
+            
+            await testRegister();
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Pause 1s
+            
+            await testLogin();
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Pause 1s
+            
+            await testSync();
+            
+            log('<h2>🏁 Tests terminés</h2>');
+        }
+
+        // Auto-générer un email unique au chargement
+        window.onload = function() {
+            const timestamp = new Date().getTime();
+            document.getElementById('testEmail').value = `test_${timestamp}@example.com`;
+        };
+    </script>
+</body>
+</html>

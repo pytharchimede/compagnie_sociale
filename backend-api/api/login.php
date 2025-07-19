@@ -10,12 +10,14 @@ error_log("Raw input: " . file_get_contents('php://input'));
 try {
     // Récupérer les données JSON
     $input = json_decode(file_get_contents('php://input'), true);
-    
+
     error_log("Parsed JSON: " . print_r($input, true));
-    
+
     if (!$input) {
         throw new Exception('Données JSON invalides');
-    }    // Validation des champs requis
+    }
+
+    // Validation des champs requis
     if (empty($input['email']) || empty($input['password'])) {
         throw new Exception('Email et mot de passe requis');
     }
@@ -47,6 +49,10 @@ try {
     }
 
     // Vérifier le mot de passe
+    error_log("Password from request: " . $password);
+    error_log("Hashed password from DB: " . $user['password']);
+    error_log("Password verify result: " . (password_verify($password, $user['password']) ? 'TRUE' : 'FALSE'));
+
     if (!password_verify($password, $user['password'])) {
         throw new Exception('Email ou mot de passe incorrect');
     }

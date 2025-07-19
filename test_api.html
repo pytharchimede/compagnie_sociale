@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Compagnie Sociale</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 3px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; white-space: pre-wrap; font-family: monospace; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        input, select { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Test API Compagnie Sociale CI</h1>
+        
+        <div class="test-section">
+            <h3>1️⃣ Test de Connectivité API</h3>
+            <button onclick="testAPI()">Tester la Connectivité</button>
+            <div id="api-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2️⃣ Créer Utilisateur de Test</h3>
+            <button onclick="createTestUser()">Créer Utilisateur Debug</button>
+            <div id="create-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3️⃣ Test Inscription</h3>
+            <input type="email" id="reg-email" placeholder="Email" value="testflutter@example.com">
+            <input type="password" id="reg-password" placeholder="Mot de passe" value="flutter123">
+            <input type="text" id="reg-firstname" placeholder="Prénom" value="Flutter">
+            <input type="text" id="reg-lastname" placeholder="Nom" value="Test">
+            <input type="text" id="reg-phone" placeholder="Téléphone" value="0123456789">
+            <br>
+            <button onclick="testRegister()">Tester Inscription</button>
+            <div id="register-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4️⃣ Test Connexion</h3>
+            <input type="email" id="login-email" placeholder="Email" value="testflutter@example.com">
+            <input type="password" id="login-password" placeholder="Mot de passe" value="flutter123">
+            <br>
+            <button onclick="testLogin()">Tester Connexion</button>
+            <div id="login-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5️⃣ Test avec Utilisateur Debug</h3>
+            <button onclick="testDebugLogin()">Connexion avec test_debug@example.com</button>
+            <div id="debug-login-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://fidest.ci/rencontre/backend-api/api';
+
+        async function makeRequest(url, method = 'GET', data = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                };
+                
+                if (data && method !== 'GET') {
+                    options.body = JSON.stringify(data);
+                }
+
+                const response = await fetch(url, options);
+                const result = await response.text();
+                
+                return {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: result,
+                    headers: Object.fromEntries(response.headers.entries())
+                };
+            } catch (error) {
+                return {
+                    status: 0,
+                    statusText: 'Network Error',
+                    body: error.message,
+                    error: true
+                };
+            }
+        }
+
+        function displayResult(elementId, response) {
+            const element = document.getElementById(elementId);
+            let className = 'result';
+            
+            if (response.error || response.status >= 400) {
+                className += ' error';
+            } else if (response.status >= 200 && response.status < 300) {
+                className += ' success';
+            }
+            
+            element.className = className;
+            element.textContent = `Status: ${response.status} ${response.statusText}\n\n${response.body}`;
+        }
+
+        async function testAPI() {
+            const response = await makeRequest(`${API_BASE}/test.php`);
+            displayResult('api-result', response);
+        }
+
+        async function createTestUser() {
+            const response = await makeRequest(`${API_BASE}/debug.php?action=register`, 'POST');
+            displayResult('create-result', response);
+        }
+
+        async function testRegister() {
+            const data = {
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value,
+                firstName: document.getElementById('reg-firstname').value,
+                lastName: document.getElementById('reg-lastname').value,
+                phone: document.getElementById('reg-phone').value
+            };
+            
+            const response = await makeRequest(`${API_BASE}/register.php`, 'POST', data);
+            displayResult('register-result', response);
+        }
+
+        async function testLogin() {
+            const data = {
+                email: document.getElementById('login-email').value,
+                password: document.getElementById('login-password').value
+            };
+            
+            const response = await makeRequest(`${API_BASE}/login.php`, 'POST', data);
+            displayResult('login-result', response);
+        }
+
+        async function testDebugLogin() {
+            const data = {
+                email: 'test_debug@example.com',
+                password: 'test123'
+            };
+            
+            const response = await makeRequest(`${API_BASE}/login.php`, 'POST', data);
+            displayResult('debug-login-result', response);
+        }
+
+        // Auto-test au chargement
+        window.onload = function() {
+            testAPI();
+        };
+    </script>
+</body>
+</html>

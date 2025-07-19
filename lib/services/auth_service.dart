@@ -133,12 +133,13 @@ class AuthService {
         // Debug: afficher l'erreur exacte du serveur
         final errorResponse = response.body;
         print('DEBUG - Erreur serveur ${response.statusCode}: $errorResponse');
-        
+
         try {
           final errorData = jsonDecode(response.body);
           return {
             'success': false,
-            'message': 'Erreur ${response.statusCode}: ${errorData['message'] ?? 'Erreur serveur'}'
+            'message':
+                'Erreur ${response.statusCode}: ${errorData['message'] ?? 'Erreur serveur'}'
           };
         } catch (e) {
           return {
@@ -203,73 +204,71 @@ class AuthService {
           final data = jsonDecode(response.body);
 
           if (data['success']) {
-          // Mettre à jour/sauvegarder localement
-          final db = await _initDatabase();
-          final existingUser = await db.query(
-            'users',
-            where: 'email = ?',
-            whereArgs: [email],
-          );
-
-          if (existingUser.isNotEmpty) {
-            await db.update(
+            // Mettre à jour/sauvegarder localement
+            final db = await _initDatabase();
+            final existingUser = await db.query(
               'users',
-              {
+              where: 'email = ?',
+              whereArgs: [email],
+            );
+
+            if (existingUser.isNotEmpty) {
+              await db.update(
+                'users',
+                {
+                  'password': password,
+                  'firstName': data['user']['firstName'],
+                  'lastName': data['user']['lastName'],
+                  'phone': data['user']['phone'],
+                  'isPremium': data['user']['isPremium'] ?? 0,
+                  'needsSync': 0,
+                },
+                where: 'email = ?',
+                whereArgs: [email],
+              );
+            } else {
+              await db.insert('users', {
+                'email': email,
                 'password': password,
                 'firstName': data['user']['firstName'],
                 'lastName': data['user']['lastName'],
                 'phone': data['user']['phone'],
                 'isPremium': data['user']['isPremium'] ?? 0,
+                'createdAt': DateTime.now().toIso8601String(),
                 'needsSync': 0,
-              },
-              where: 'email = ?',
-              whereArgs: [email],
-            );
+              });
+            }
+
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool('isLoggedIn', true);
+            await prefs.setString('userEmail', email);
+
+            return data;
           } else {
-            await db.insert('users', {
-              'email': email,
-              'password': password,
-              'firstName': data['user']['firstName'],
-              'lastName': data['user']['lastName'],
-              'phone': data['user']['phone'],
-              'isPremium': data['user']['isPremium'] ?? 0,
-              'createdAt': DateTime.now().toIso8601String(),
-              'needsSync': 0,
-            });
+            // Erreur de l'API (400, etc.)
+            try {
+              final errorData = jsonDecode(response.body);
+              return {
+                'success': false,
+                'message': errorData['message'] ?? 'Erreur de connexion'
+              };
+            } catch (_) {
+              return {'success': false, 'message': 'Erreur de réponse serveur'};
+            }
           }
-
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isLoggedIn', true);
-          await prefs.setString('userEmail', email);
-
-          return data;
         } else {
-          // Erreur de l'API (400, etc.)
-          try {
-            final errorData = jsonDecode(response.body);
-            return {
-              'success': false,
-              'message': errorData['message'] ?? 'Erreur de connexion'
-            };
-          } catch (_) {
-            return {
-              'success': false,
-              'message': 'Erreur de réponse serveur'
-            };
-          }
+          // Erreur HTTP (500, etc.)
+          print(
+              'DEBUG - Login HTTP error: ${response.statusCode} - ${response.body}');
+          return {
+            'success': false,
+            'message': 'Erreur serveur (${response.statusCode})'
+          };
         }
-      } else {
-        // Erreur HTTP (500, etc.)
-        print('DEBUG - Login HTTP error: ${response.statusCode} - ${response.body}');
-        return {
-          'success': false,
-          'message': 'Erreur serveur (${response.statusCode})'
-        };
+      } catch (e) {
+        print('DEBUG - Login exception: $e');
+        // En cas d'erreur réseau, essayer la connexion locale
       }
-    } catch (e) {
-      print('DEBUG - Login exception: $e');
-      // En cas d'erreur réseau, essayer la connexion locale
-    }
     }
 
     // Connexion locale (fallback automatique)

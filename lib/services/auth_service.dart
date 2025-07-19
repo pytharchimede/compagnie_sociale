@@ -130,13 +130,25 @@ class AuthService {
 
         return data;
       } else {
-        return {
-          'success': false,
-          'message':
-              'Erreur serveur (${response.statusCode}). Vérifiez votre connexion.'
-        };
+        // Debug: afficher l'erreur exacte du serveur
+        final errorResponse = response.body;
+        print('DEBUG - Erreur serveur ${response.statusCode}: $errorResponse');
+        
+        try {
+          final errorData = jsonDecode(response.body);
+          return {
+            'success': false,
+            'message': 'Erreur ${response.statusCode}: ${errorData['message'] ?? 'Erreur serveur'}'
+          };
+        } catch (e) {
+          return {
+            'success': false,
+            'message': 'Erreur ${response.statusCode}: Réponse serveur invalide'
+          };
+        }
       }
     } catch (e) {
+      print('DEBUG - Exception lors de l\'inscription: $e');
       // Inscription hors ligne temporaire pour les tests
       try {
         final db = await _initDatabase();
@@ -184,9 +196,13 @@ class AuthService {
           }),
         );
 
-        final data = jsonDecode(response.body);
+        print('DEBUG - Login response status: ${response.statusCode}');
+        print('DEBUG - Login response body: ${response.body}');
 
-        if (data['success']) {
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+
+          if (data['success']) {
           // Mettre à jour/sauvegarder localement
           final db = await _initDatabase();
           final existingUser = await db.query(
@@ -227,12 +243,33 @@ class AuthService {
           await prefs.setString('userEmail', email);
 
           return data;
+        } else {
+          // Erreur de l'API (400, etc.)
+          try {
+            final errorData = jsonDecode(response.body);
+            return {
+              'success': false,
+              'message': errorData['message'] ?? 'Erreur de connexion'
+            };
+          } catch (_) {
+            return {
+              'success': false,
+              'message': 'Erreur de réponse serveur'
+            };
+          }
         }
-
-        return data;
-      } catch (e) {
-        // En cas d'erreur réseau, essayer la connexion locale
+      } else {
+        // Erreur HTTP (500, etc.)
+        print('DEBUG - Login HTTP error: ${response.statusCode} - ${response.body}');
+        return {
+          'success': false,
+          'message': 'Erreur serveur (${response.statusCode})'
+        };
       }
+    } catch (e) {
+      print('DEBUG - Login exception: $e');
+      // En cas d'erreur réseau, essayer la connexion locale
+    }
     }
 
     // Connexion locale (fallback automatique)

@@ -1,9 +1,9 @@
 <?php
 // Configuration de la base de données
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'compagnie_sociale_ci');
-define('DB_USER', 'votre_user_mysql');
-define('DB_PASS', 'votre_password_mysql');
+define('DB_NAME', 'fidestci_compagnie_sociale');
+define('DB_USER', 'fidestci_ulrich');
+define('DB_PASS', '@Succes2019');
 
 // Configuration CORS
 header('Access-Control-Allow-Origin: *');

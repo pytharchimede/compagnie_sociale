@@ -182,22 +182,109 @@ class AuthService {
     }
   }
 
+  // Test de connexion spécifique pour debug
+  Future<Map<String, dynamic>> testLoginConnection(
+      String email, String password) async {
+    print('=== TEST LOGIN CONNECTION ===');
+    print('Email: $email');
+    print('Password length: ${password.length}');
+    print('Base URL: $_baseUrl');
+
+    try {
+      // Test HTTPS d'abord
+      print('Testing HTTPS connection...');
+      final httpsResponse = await http
+          .post(
+            Uri.parse('$_baseUrl/login.php'),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'CompagnieSociale-Debug/1.0',
+            },
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('HTTPS Status: ${httpsResponse.statusCode}');
+      print('HTTPS Headers: ${httpsResponse.headers}');
+      print('HTTPS Body: ${httpsResponse.body}');
+
+      if (httpsResponse.statusCode == 200) {
+        final data = jsonDecode(httpsResponse.body);
+        return {
+          'success': true,
+          'method': 'HTTPS',
+          'data': data,
+        };
+      }
+    } catch (e) {
+      print('HTTPS Error: $e');
+    }
+
+    try {
+      // Test HTTP en fallback
+      print('Testing HTTP connection...');
+      final httpUrl = _baseUrl.replaceFirst('https://', 'http://');
+      final httpResponse = await http
+          .post(
+            Uri.parse('$httpUrl/login.php'),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'CompagnieSociale-Debug/1.0',
+            },
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('HTTP Status: ${httpResponse.statusCode}');
+      print('HTTP Headers: ${httpResponse.headers}');
+      print('HTTP Body: ${httpResponse.body}');
+
+      if (httpResponse.statusCode == 200) {
+        final data = jsonDecode(httpResponse.body);
+        return {
+          'success': true,
+          'method': 'HTTP',
+          'data': data,
+        };
+      }
+    } catch (e) {
+      print('HTTP Error: $e');
+    }
+
+    return {
+      'success': false,
+      'message': 'Impossible de se connecter à l\'API',
+    };
+  }
+
   // Connexion - avec fallback local automatique
   Future<Map<String, dynamic>> login(String email, String password) async {
     final hasConnection = await checkConnectivity();
 
     if (hasConnection) {
       try {
-        final response = await http.post(
-          Uri.parse('$_baseUrl/login.php'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': email,
-            'password': password,
-          }),
-        );
+        final response = await http
+            .post(
+              Uri.parse('$_baseUrl/login.php'),
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'CompagnieSociale/1.0',
+              },
+              body: jsonEncode({
+                'email': email,
+                'password': password,
+              }),
+            )
+            .timeout(const Duration(seconds: 30));
 
         print('DEBUG - Login response status: ${response.statusCode}');
+        print('DEBUG - Login response headers: ${response.headers}');
         print('DEBUG - Login response body: ${response.body}');
 
         if (response.statusCode == 200) {

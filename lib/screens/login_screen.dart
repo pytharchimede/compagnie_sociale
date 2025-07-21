@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:email_validator/email_validator.dart';
 import '../providers/auth_provider.dart';
-import '../services/auth_service.dart'; // Pour le test direct
 import '../utils/app_colors.dart';
 import '../widgets/gradient_button.dart';
 import 'register_screen.dart';
@@ -40,12 +39,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final authProvider = context.read<AuthProvider>();
-      final success = await authProvider.login(
+      final result = await authProvider.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      if (success) {
+      if (result['success'] == true) {
         // L'AuthProvider va automatiquement mettre à jour l'état
         // et l'AuthWrapper va rediriger vers MainScreen
         if (mounted) {
@@ -59,9 +58,10 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email ou mot de passe incorrect'),
+            SnackBar(
+              content: Text(result['message'] ?? 'Erreur de connexion'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -70,8 +70,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur de connexion: $e'),
+            content: Text('Erreur technique: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -90,9 +91,8 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Import temporaire du service pour test direct
-      final authService = AuthService();
-      final result = await authService.login(
+      final authProvider = context.read<AuthProvider>();
+      final result = await authProvider.testConnection(
         _emailController.text.trim(),
         _passwordController.text,
       );
@@ -104,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
             title: const Text('Test Direct Auth'),
             content: SingleChildScrollView(
               child: Text(
-                'Résultat AuthService:\n${result.toString()}',
+                'Résultat API:\n${result.toString()}',
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
               ),
             ),

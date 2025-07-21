@@ -1,98 +1,55 @@
 import 'package:flutter/foundation.dart';
-import 'dart:async';
-import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../models/user.dart';
 
-class AuthProvider extends ChangeNotifier {
+class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
-  Timer? _syncTimer;
 
-  User? _currentUser;
-  bool _isLoading = false;
   bool _isLoggedIn = false;
+  bool _isLoading = false;
+  User? _currentUser;
+  String? _lastErrorMessage;
 
-  User? get currentUser => _currentUser;
-  bool get isLoading => _isLoading;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isLoading => _isLoading;
+  User? get currentUser => _currentUser;
+  String? get lastErrorMessage => _lastErrorMessage;
 
-  AuthProvider() {
-    _initializeAuth();
-    _startAutoSync();
-  }
-
-  @override
-  void dispose() {
-    _syncTimer?.cancel();
-    _authService.dispose();
-    super.dispose();
-  }
-
-  // Synchronisation automatique toutes les 5 minutes
-  void _startAutoSync() {
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
-      try {
-        await _authService.performAutoSync();
-      } catch (e) {
-        // Ignorer les erreurs de sync automatique
-      }
-    });
-  }
-
-  // Méthode publique pour réinitialiser l'authentification
+  // Initialiser l'état d'authentification
   Future<void> initializeAuth() async {
-    await _initializeAuth();
-  }
-
-  Future<void> _initializeAuth() async {
     _setLoading(true);
 
     try {
       _isLoggedIn = await _authService.isLoggedIn();
+
       if (_isLoggedIn) {
         final userData = await _authService.getCurrentUser();
         if (userData != null) {
           _currentUser = User.fromJson(userData);
+        } else {
+          // Données utilisateur corrompues, déconnecter
+          await logout();
         }
       }
     } catch (e) {
-      // Ignorer les erreurs d'initialisation en production
-    } finally {
-      _setLoading(false);
+      print('DEBUG - Erreur initialisation auth: $e');
+      _isLoggedIn = false;
+      _currentUser = null;
     }
+
+    _setLoading(false);
   }
 
-  Future<bool> login(String email, String password) async {
-    _setLoading(true);
-
-    try {
-      final result = await _authService.login(email, password);
-
-      if (result['success'] == true) {
-        final userData = result['user'];
-        if (userData != null) {
-          _currentUser = User.fromJson(userData);
-          _isLoggedIn = true;
-          notifyListeners();
-          return true;
-        }
-      }
-
-      return false;
-    } catch (e) {
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  Future<bool> register({
+  // Inscription
+  Future<Map<String, dynamic>> register({
     required String email,
     required String password,
     required String firstName,
     required String lastName,
-    String? phone,
+    required String phone,
   }) async {
     _setLoading(true);
+    _lastErrorMessage = null;
 
     try {
       final result = await _authService.register(
@@ -100,50 +57,81 @@ class AuthProvider extends ChangeNotifier {
         password: password,
         firstName: firstName,
         lastName: lastName,
-        phone: phone ?? '',
+        phone: phone,
       );
 
       if (result['success'] == true) {
-        // Auto-login après inscription réussie
-        return await login(email, password);
+        _isLoggedIn = true;
+        _currentUser = User.fromJson(result['user']);
+        _setLoading(false);
+        return result;
+      } else {
+        _lastErrorMessage = result['message'];
+        _setLoading(false);
+        return result;
       }
-
-      return false;
     } catch (e) {
-      return false;
-    } finally {
+      _lastErrorMessage = 'Erreur technique: $e';
       _setLoading(false);
+      return {
+        'success': false,
+        'message': _lastErrorMessage,
+      };
     }
   }
 
-  Future<void> logout() async {
+  // Connexion
+  Future<Map<String, dynamic>> login(String email, String password) async {
     _setLoading(true);
+    _lastErrorMessage = null;
 
     try {
-      await _authService.logout();
-      _currentUser = null;
-      _isLoggedIn = false;
-      notifyListeners();
+      final result = await _authService.login(email, password);
+
+      if (result['success'] == true) {
+        _isLoggedIn = true;
+        _currentUser = User.fromJson(result['user']);
+        _setLoading(false);
+        return result;
+      } else {
+        _lastErrorMessage = result['message'];
+        _setLoading(false);
+        return result;
+      }
     } catch (e) {
-      // Ignorer les erreurs de déconnexion
-    } finally {
+      _lastErrorMessage = 'Erreur technique: $e';
       _setLoading(false);
+      return {
+        'success': false,
+        'message': _lastErrorMessage,
+      };
     }
   }
 
+  // Test de connexion (pour debug)
+  Future<Map<String, dynamic>> testConnection(
+      String email, String password) async {
+    return await _authService.testLoginConnection(email, password);
+  }
+
+  // Déconnexion
+  Future<void> logout() async {
+    await _authService.logout();
+    _isLoggedIn = false;
+    _currentUser = null;
+    _lastErrorMessage = null;
+    notifyListeners();
+  }
+
+  // Méthode utilitaire pour définir l'état de chargement
   void _setLoading(bool loading) {
-    if (_isLoading != loading) {
-      _isLoading = loading;
-      notifyListeners();
-    }
+    _isLoading = loading;
+    notifyListeners();
   }
 
-  // Méthodes simplifiées pour la compatibilité
-  String? get error => null; // Pas d'erreur persistante en production
-
-  bool get hasError => false; // Pas d'erreur persistante en production
-
-  void clearError() {
-    // Méthode vide pour la compatibilité
+  @override
+  void dispose() {
+    // Plus de timer à nettoyer
+    super.dispose();
   }
 }

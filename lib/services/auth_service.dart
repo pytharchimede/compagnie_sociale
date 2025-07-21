@@ -1,103 +1,106 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:path/path.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
-  static const String _baseUrl = 'https://fidest.ci/rencontre/backend-api/api';
-  static Database? _database;
+  static const String baseUrl = 'https://fidest.ci/rencontre/backend-api/api';
+  static const String loginEndpoint = '$baseUrl/login.php';
+  static const String registerEndpoint = '$baseUrl/register.php';
 
-  // Vérifier la connectivité réseau avec timeout court
+  // Vérification de la connectivité réseau
   Future<bool> checkConnectivity() async {
     try {
-      // Test simple avec une API qui accepte GET
-      final result = await http.get(
-        Uri.parse('https://httpbin.org/status/200'),
-        headers: {'User-Agent': 'CompagnieSociale/1.0'},
-      ).timeout(const Duration(seconds: 5));
-      return result.statusCode == 200;
+      // Test direct avec notre API
+      final response = await http.get(
+        Uri.parse('$baseUrl/status.php'), // ou un endpoint simple de votre API
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 8));
+
+      return response.statusCode < 500;
     } catch (e) {
-      // En cas d'échec, essayer notre domaine avec une page statique
-      try {
-        final result = await http.get(
-          Uri.parse('https://fidest.ci/'),
-          headers: {'User-Agent': 'CompagnieSociale/1.0'},
-        ).timeout(const Duration(seconds: 8));
-        return result.statusCode >= 200 && result.statusCode < 500;
-      } catch (e2) {
-        return false;
-      }
+      debugPrint('DEBUG - Erreur connectivité: $e');
+      return false;
     }
   }
 
-  // Initialiser la base de données locale
-  Future<Database> _initDatabase() async {
-    if (_database != null) return _database!;
+  // Connexion utilisateur
 
-    // Configuration pour Windows
-    if (Platform.isWindows || Platform.isLinux) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    }
-
-    final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, 'compagnie_sociale.db');
-
-    // Supprimer l'ancienne base de données pour forcer la recréation
+  Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      await deleteDatabase(path);
-      print('DEBUG - Ancienne base de données supprimée');
-    } catch (e) {
-      print('DEBUG - Erreur suppression DB: $e');
-    }
+      debugPrint('DEBUG - Tentative de connexion à: $loginEndpoint');
+      debugPrint('DEBUG - Email: $email');
 
-    _database = await openDatabase(
-      path,
-      version: 3, // Incrémentons la version
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            firstName TEXT,
-            lastName TEXT,
-            phone TEXT,
-            profileImageUrl TEXT,
-            isPremium INTEGER DEFAULT 0,
-            createdAt TEXT,
-            needsSync INTEGER DEFAULT 0
+      final response = await http
+          .post(
+            Uri.parse(loginEndpoint),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+            }),
           )
-        ''');
-        print('DEBUG - Nouvelle base de données créée avec firstName/lastName');
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute(
-              'ALTER TABLE users ADD COLUMN isPremium INTEGER DEFAULT 0');
-        }
-        if (oldVersion < 3) {
-          // S'assurer que firstName et lastName existent
-          try {
-            await db.execute('ALTER TABLE users ADD COLUMN firstName TEXT');
-          } catch (e) {
-            // Colonne existe déjà, ignorer
-          }
-          try {
-            await db.execute('ALTER TABLE users ADD COLUMN lastName TEXT');
-          } catch (e) {
-            // Colonne existe déjà, ignorer
-          }
-        }
-      },
-    );
+          .timeout(const Duration(seconds: 30));
 
-    return _database!;
+      debugPrint('DEBUG - Response status: ${response.statusCode}');
+      debugPrint('DEBUG - Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          // Sauvegarder les données de session
+          await _saveUserSession(data['user']);
+
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Connexion réussie',
+            'user': data['user']
+          };
+        } else {
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Email ou mot de passe incorrect',
+            'error_type': 'auth'
+          };
+        }
+      } else {
+        return {
+          'success': false,
+          'message':
+              'Erreur serveur (${response.statusCode}). Réessayez plus tard.',
+          'error_type': 'server'
+        };
+      }
+    } catch (e) {
+      debugPrint('DEBUG - Erreur login: $e');
+
+      if (e.toString().contains('TimeoutException')) {
+        return {
+          'success': false,
+          'message': 'Connexion trop lente. Vérifiez votre réseau.',
+          'error_type': 'timeout'
+        };
+      }
+
+      if (e.toString().contains('Failed to fetch') ||
+          e.toString().contains('ClientException')) {
+        return {
+          'success': false,
+          'message': 'Pas de connexion internet. Vérifiez votre réseau.',
+          'error_type': 'network'
+        };
+      }
+
+      return {
+        'success': false,
+        'message': 'Erreur de connexion: ${e.toString()}',
+        'error_type': 'network'
+      };
+    }
   }
 
-  // Inscription - essaie directement, le test de connectivité se fait via l'API
+  // Inscription utilisateur
   Future<Map<String, dynamic>> register({
     required String email,
     required String password,
@@ -106,14 +109,13 @@ class AuthService {
     required String phone,
   }) async {
     try {
+      debugPrint('DEBUG - Tentative d\'inscription à: $registerEndpoint');
+      debugPrint('DEBUG - Email: $email');
+
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/register.php'),
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'CompagnieSociale/1.0',
-              'Accept': 'application/json',
-            },
+            Uri.parse(registerEndpoint),
+            headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'email': email,
               'password': password,
@@ -122,394 +124,132 @@ class AuthService {
               'phone': phone,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
+
+      debugPrint('DEBUG - Register response status: ${response.statusCode}');
+      debugPrint('DEBUG - Register response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
-          // Sauvegarder localement
-          final db = await _initDatabase();
-          await db.insert('users', {
-            'email': email,
-            'password': password,
-            'firstName': firstName,
-            'lastName': lastName,
-            'phone': phone,
-            'isPremium': 0,
-            'createdAt': DateTime.now().toIso8601String(),
-            'needsSync': 0,
-          });
+          // Sauvegarder les données de session
+          await _saveUserSession(data['user']);
 
-          // Sauvegarder l'état de connexion
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isLoggedIn', true);
-          await prefs.setString('userEmail', email);
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Inscription réussie',
+            'user': data['user']
+          };
+        } else {
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Erreur lors de l\'inscription',
+            'error_type': 'validation'
+          };
         }
-
-        return data;
       } else {
-        // Debug: afficher l'erreur exacte du serveur
-        final errorResponse = response.body;
-        print('DEBUG - Erreur serveur ${response.statusCode}: $errorResponse');
-
-        try {
-          final errorData = jsonDecode(response.body);
-          return {
-            'success': false,
-            'message':
-                'Erreur ${response.statusCode}: ${errorData['message'] ?? 'Erreur serveur'}'
-          };
-        } catch (e) {
-          return {
-            'success': false,
-            'message': 'Erreur ${response.statusCode}: Réponse serveur invalide'
-          };
-        }
-      }
-    } catch (e) {
-      print('DEBUG - Exception lors de l\'inscription: $e');
-      // Inscription hors ligne temporaire pour les tests
-      try {
-        final db = await _initDatabase();
-        await db.insert('users', {
-          'email': email,
-          'password': password,
-          'firstName': firstName,
-          'lastName': lastName,
-          'phone': phone,
-          'isPremium': 0,
-          'createdAt': DateTime.now().toIso8601String(),
-          'needsSync': 1, // Marquer pour synchronisation ultérieure
-        });
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userEmail', email);
-
-        return {
-          'success': true,
-          'message':
-              'Compte créé en mode hors ligne. Sera synchronisé dès la connexion.'
-        };
-      } catch (dbError) {
         return {
           'success': false,
-          'message': 'Erreur: Vérifiez votre connexion Internet et réessayez.'
+          'message':
+              'Erreur serveur (${response.statusCode}). Réessayez plus tard.',
+          'error_type': 'server'
         };
       }
+    } catch (e) {
+      debugPrint('DEBUG - Erreur register: $e');
+
+      if (e.toString().contains('TimeoutException')) {
+        return {
+          'success': false,
+          'message': 'Connexion trop lente. Vérifiez votre réseau.',
+          'error_type': 'timeout'
+        };
+      }
+
+      if (e.toString().contains('Failed to fetch') ||
+          e.toString().contains('ClientException')) {
+        return {
+          'success': false,
+          'message': 'Pas de connexion internet. Vérifiez votre réseau.',
+          'error_type': 'network'
+        };
+      }
+
+      return {
+        'success': false,
+        'message': 'Erreur de connexion: ${e.toString()}',
+        'error_type': 'network'
+      };
     }
   }
 
-  // Test de connexion spécifique pour debug
+  // Test de connexion (pour debug)
   Future<Map<String, dynamic>> testLoginConnection(
       String email, String password) async {
-    print('=== TEST LOGIN CONNECTION ===');
-    print('Email: $email');
-    print('Password length: ${password.length}');
-    print('Base URL: $_baseUrl');
+    debugPrint('DEBUG - Test de connexion pour: $email');
 
     try {
-      // Test HTTPS d'abord
-      print('Testing HTTPS connection...');
-      final httpsResponse = await http
-          .post(
-            Uri.parse('$_baseUrl/login.php'),
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'CompagnieSociale-Debug/1.0',
-            },
-            body: jsonEncode({
-              'email': email,
-              'password': password,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
+      final result = await login(email, password);
 
-      print('HTTPS Status: ${httpsResponse.statusCode}');
-      print('HTTPS Headers: ${httpsResponse.headers}');
-      print('HTTPS Body: ${httpsResponse.body}');
-
-      if (httpsResponse.statusCode == 200) {
-        final data = jsonDecode(httpsResponse.body);
-        return {
-          'success': true,
-          'method': 'HTTPS',
-          'data': data,
-        };
-      }
+      return {
+        'connectivity': await checkConnectivity(),
+        'login_result': result,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
     } catch (e) {
-      print('HTTPS Error: $e');
-    }
-
-    try {
-      // Test HTTP en fallback
-      print('Testing HTTP connection...');
-      final httpUrl = _baseUrl.replaceFirst('https://', 'http://');
-      final httpResponse = await http
-          .post(
-            Uri.parse('$httpUrl/login.php'),
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'CompagnieSociale-Debug/1.0',
-            },
-            body: jsonEncode({
-              'email': email,
-              'password': password,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      print('HTTP Status: ${httpResponse.statusCode}');
-      print('HTTP Headers: ${httpResponse.headers}');
-      print('HTTP Body: ${httpResponse.body}');
-
-      if (httpResponse.statusCode == 200) {
-        final data = jsonDecode(httpResponse.body);
-        return {
-          'success': true,
-          'method': 'HTTP',
-          'data': data,
-        };
-      }
-    } catch (e) {
-      print('HTTP Error: $e');
-    }
-
-    return {
-      'success': false,
-      'message': 'Impossible de se connecter à l\'API',
-    };
-  }
-
-  // Connexion - avec fallback local automatique
-  Future<Map<String, dynamic>> login(String email, String password) async {
-    print('=== LOGIN DEBUG START ===');
-    print('Email: $email');
-    print('Password length: ${password.length}');
-
-    final hasConnection = await checkConnectivity();
-    print('Has connection: $hasConnection');
-
-    if (hasConnection) {
-      try {
-        print('Attempting API login...');
-        final response = await http
-            .post(
-              Uri.parse('$_baseUrl/login.php'),
-              headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'CompagnieSociale/1.0',
-              },
-              body: jsonEncode({
-                'email': email,
-                'password': password,
-              }),
-            )
-            .timeout(const Duration(seconds: 30));
-
-        print('DEBUG - Login response status: ${response.statusCode}');
-        print('DEBUG - Login response headers: ${response.headers}');
-        print('DEBUG - Login response body: ${response.body}');
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-
-          if (data['success']) {
-            // Mettre à jour/sauvegarder localement
-            final db = await _initDatabase();
-            final existingUser = await db.query(
-              'users',
-              where: 'email = ?',
-              whereArgs: [email],
-            );
-
-            if (existingUser.isNotEmpty) {
-              await db.update(
-                'users',
-                {
-                  'password': password,
-                  'firstName': data['user']['firstName'],
-                  'lastName': data['user']['lastName'],
-                  'phone': data['user']['phone'],
-                  'isPremium': data['user']['isPremium'] ?? 0,
-                  'needsSync': 0,
-                },
-                where: 'email = ?',
-                whereArgs: [email],
-              );
-            } else {
-              await db.insert('users', {
-                'email': email,
-                'password': password,
-                'firstName': data['user']['firstName'],
-                'lastName': data['user']['lastName'],
-                'phone': data['user']['phone'],
-                'isPremium': data['user']['isPremium'] ?? 0,
-                'createdAt': DateTime.now().toIso8601String(),
-                'needsSync': 0,
-              });
-            }
-
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setBool('isLoggedIn', true);
-            await prefs.setString('userEmail', email);
-
-            return data;
-          } else {
-            // Erreur de l'API (400, etc.)
-            try {
-              final errorData = jsonDecode(response.body);
-              return {
-                'success': false,
-                'message': errorData['message'] ?? 'Erreur de connexion'
-              };
-            } catch (_) {
-              return {'success': false, 'message': 'Erreur de réponse serveur'};
-            }
-          }
-        } else {
-          // Erreur HTTP (500, etc.)
-          print(
-              'DEBUG - Login HTTP error: ${response.statusCode} - ${response.body}');
-          return {
-            'success': false,
-            'message': 'Erreur serveur (${response.statusCode})'
-          };
-        }
-      } catch (e) {
-        print('DEBUG - Login exception: $e');
-        // En cas d'erreur réseau, essayer la connexion locale
-      }
-    }
-
-    // Connexion locale (fallback automatique)
-    try {
-      final db = await _initDatabase();
-      final users = await db.query(
-        'users',
-        where: 'email = ? AND password = ?',
-        whereArgs: [email, password],
-      );
-
-      if (users.isNotEmpty) {
-        final user = users.first;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userEmail', email);
-
-        return {
-          'success': true,
-          'message': 'Connexion réussie (mode hors ligne)',
-          'user': {
-            'id': user['id'],
-            'email': user['email'],
-            'firstName': user['firstName'],
-            'lastName': user['lastName'],
-            'phone': user['phone'],
-            'isPremium': user['isPremium'],
-          }
-        };
-      }
-
-      return {'success': false, 'message': 'Email ou mot de passe incorrect'};
-    } catch (e) {
-      return {'success': false, 'message': 'Erreur de base de données locale'};
+      return {
+        'connectivity': false,
+        'error': e.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+      };
     }
   }
 
-  // Synchronisation en arrière-plan (non-bloquante)
-  Future<void> _syncPendingDataInBackground() async {
-    final hasConnection = await checkConnectivity();
-    if (!hasConnection) return;
-
-    try {
-      final db = await _initDatabase();
-      final pendingUsers = await db.query(
-        'users',
-        where: 'needsSync = ?',
-        whereArgs: [1],
-      );
-
-      for (final user in pendingUsers) {
-        try {
-          await http.post(
-            Uri.parse('$_baseUrl/sync_user.php'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(user),
-          );
-
-          await db.update(
-            'users',
-            {'needsSync': 0},
-            where: 'id = ?',
-            whereArgs: [user['id']],
-          );
-        } catch (e) {
-          // Continuer avec les autres utilisateurs
-        }
-      }
-    } catch (e) {
-      // Synchronisation échouée, réessayer plus tard
-    }
-  }
-
-  // Synchronisation automatique (appelée par le Timer)
-  Future<void> performAutoSync() async {
-    await _syncPendingDataInBackground();
-  }
-
-  // Déconnexion
-  Future<void> logout() async {
+  // Sauvegarder la session utilisateur
+  Future<void> _saveUserSession(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('isLoggedIn');
-    await prefs.remove('userEmail');
+    await prefs.setString('user_data', jsonEncode(userData));
+    await prefs.setBool('is_logged_in', true);
+    await prefs.setString('login_timestamp', DateTime.now().toIso8601String());
   }
 
   // Vérifier si l'utilisateur est connecté
   Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('isLoggedIn') ?? false;
-  }
-
-  // Obtenir l'utilisateur actuel
-  Future<Map<String, dynamic>?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString('userEmail');
-
-    if (email == null) return null;
-
     try {
-      final db = await _initDatabase();
-      final users = await db.query(
-        'users',
-        where: 'email = ?',
-        whereArgs: [email],
-      );
-
-      if (users.isNotEmpty) {
-        final user = users.first;
-        return {
-          'id': user['id'],
-          'email': user['email'],
-          'firstName': user['firstName'],
-          'lastName': user['lastName'],
-          'phone': user['phone'],
-          'isPremium': user['isPremium'],
-        };
-      }
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('is_logged_in') ?? false;
     } catch (e) {
-      // Erreur de base de données
+      debugPrint('DEBUG - Erreur isLoggedIn: $e');
+      return false;
     }
-
-    return null;
   }
 
-  // Nettoyer les ressources
-  Future<void> dispose() async {
-    if (_database != null) {
-      await _database!.close();
-      _database = null;
+  // Récupérer les données de l'utilisateur actuel
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString('user_data');
+
+      if (userDataString != null) {
+        return jsonDecode(userDataString);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('DEBUG - Erreur getCurrentUser: $e');
+      return null;
+    }
+  }
+
+  // Déconnexion
+  Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_data');
+      await prefs.remove('is_logged_in');
+      await prefs.remove('login_timestamp');
+    } catch (e) {
+      debugPrint('DEBUG - Erreur logout: $e');
     }
   }
 }

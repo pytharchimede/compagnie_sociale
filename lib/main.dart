@@ -7,14 +7,9 @@ import 'providers/user_provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
-import 'database/database_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialiser la base de données
-  await DatabaseHelper().database;
-
   runApp(const CompagnieSocialeCIApp());
 }
 

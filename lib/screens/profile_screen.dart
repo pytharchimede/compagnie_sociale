@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/app_colors.dart';
-import 'database_test_screen.dart';
 import '../widgets/gradient_button.dart';
 import 'login_screen.dart';
-import '../database/database_helper.dart';
 import '../services/auth_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -21,7 +19,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _runQuickDiagnosis() async {
     final authProvider = context.read<AuthProvider?>();
     final authService = AuthService();
-    final dbHelper = DatabaseHelper();
 
     String info = "🔍 DIAGNOSTIC RAPIDE:\n\n";
 
@@ -44,29 +41,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       info += "- currentUser: ${currentUser?['email'] ?? 'null'}\n\n";
     } catch (e) {
       info += "- Erreur: $e\n\n";
-    }
-
-    // Database check
-    info += "💾 Base de données:\n";
-    try {
-      // Récupérer le dernier utilisateur créé
-      final db = await dbHelper.database;
-      final result = await db.query(
-        'users',
-        orderBy: 'created_at DESC',
-        limit: 1,
-      );
-
-      if (result.isNotEmpty) {
-        final lastUser = result.first;
-        info += "- Dernier utilisateur: ${lastUser['email']}\n";
-        info += "- ID: ${lastUser['id']}\n";
-        info += "- Créé: ${lastUser['created_at']}\n";
-      } else {
-        info += "- Aucun utilisateur en base locale\n";
-      }
-    } catch (e) {
-      info += "- Erreur BD: $e\n";
     }
 
     setState(() {
@@ -331,29 +305,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icon(Icons.lock, color: AppColors.primary),
                       label: Text(
                         'Changer le mot de passe',
-                        style: TextStyle(color: AppColors.primary),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: AppColors.primary),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DatabaseTestScreen(),
-                          ),
-                        );
-                      },
-                      icon: Icon(Icons.storage, color: AppColors.primary),
-                      label: Text(
-                        'Test Base de Données',
                         style: TextStyle(color: AppColors.primary),
                       ),
                       style: OutlinedButton.styleFrom(

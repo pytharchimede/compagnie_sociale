@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:email_validator/email_validator.dart';
-import '../services/auth_service.dart';
+import '../providers/auth_provider.dart';
+import '../services/auth_service.dart'; // Pour le test direct
 import '../utils/app_colors.dart';
 import '../widgets/gradient_button.dart';
 import 'register_screen.dart';
-import 'main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,10 +17,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController =
-      TextEditingController(); // Champs vides pour la production
+      TextEditingController(text: 'amani@hotmail.com'); // Test temporaire
   final _passwordController =
-      TextEditingController(); // Champs vides pour la production
-  final _authService = AuthService();
+      TextEditingController(text: 'admin123'); // Test temporaire
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -39,22 +39,28 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await _authService.login(
+      final authProvider = context.read<AuthProvider>();
+      final success = await authProvider.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      if (result['success'] == true) {
+      if (success) {
+        // L'AuthProvider va automatiquement mettre à jour l'état
+        // et l'AuthWrapper va rediriger vers MainScreen
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainScreen()),
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Connexion réussie !'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'Erreur de connexion'),
+            const SnackBar(
+              content: Text('Email ou mot de passe incorrect'),
               backgroundColor: Colors.red,
             ),
           );
@@ -63,9 +69,60 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erreur de connexion'),
+          SnackBar(
+            content: Text('Erreur de connexion: $e'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _testDirectAuth() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Import temporaire du service pour test direct
+      final authService = AuthService();
+      final result = await authService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Test Direct Auth'),
+            content: SingleChildScrollView(
+              child: Text(
+                'Résultat AuthService:\n${result.toString()}',
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur test direct: $e'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -223,6 +280,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isLoading ? 'Connexion...' : 'Se connecter',
                   onPressed: _isLoading ? null : _login,
                   icon: _isLoading ? null : Icons.login,
+                ),
+                const SizedBox(height: 16),
+
+                // Bouton de test debug
+                OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _testDirectAuth,
+                  icon: const Icon(Icons.bug_report),
+                  label: const Text('TEST DIRECT'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    side: const BorderSide(color: Colors.orange),
+                  ),
                 ),
                 const SizedBox(height: 24),
 

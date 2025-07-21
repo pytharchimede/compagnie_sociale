@@ -12,23 +12,20 @@ class AuthService {
   // Vérifier la connectivité réseau avec timeout court
   Future<bool> checkConnectivity() async {
     try {
-      // Test direct avec notre API pour éviter les problèmes de certificats
+      // Test simple avec une API qui accepte GET
       final result = await http.get(
-        Uri.parse('$_baseUrl/login.php'),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'CompagnieSociale/1.0',
-        },
-      ).timeout(const Duration(seconds: 8));
-      return result.statusCode >= 200 && result.statusCode < 500;
+        Uri.parse('https://httpbin.org/status/200'),
+        headers: {'User-Agent': 'CompagnieSociale/1.0'},
+      ).timeout(const Duration(seconds: 5));
+      return result.statusCode == 200;
     } catch (e) {
-      // Si notre API échoue, essayer un test simple
+      // En cas d'échec, essayer notre domaine avec une page statique
       try {
         final result = await http.get(
-          Uri.parse('https://httpbin.org/status/200'),
+          Uri.parse('https://fidest.ci/'),
           headers: {'User-Agent': 'CompagnieSociale/1.0'},
-        ).timeout(const Duration(seconds: 5));
-        return result.statusCode == 200;
+        ).timeout(const Duration(seconds: 8));
+        return result.statusCode >= 200 && result.statusCode < 500;
       } catch (e2) {
         return false;
       }
@@ -48,9 +45,17 @@ class AuthService {
     final databasesPath = await getDatabasesPath();
     final path = join(databasesPath, 'compagnie_sociale.db');
 
+    // Supprimer l'ancienne base de données pour forcer la recréation
+    try {
+      await deleteDatabase(path);
+      print('DEBUG - Ancienne base de données supprimée');
+    } catch (e) {
+      print('DEBUG - Erreur suppression DB: $e');
+    }
+
     _database = await openDatabase(
       path,
-      version: 2,
+      version: 3, // Incrémentons la version
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users (
@@ -66,11 +71,25 @@ class AuthService {
             needsSync INTEGER DEFAULT 0
           )
         ''');
+        print('DEBUG - Nouvelle base de données créée avec firstName/lastName');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute(
               'ALTER TABLE users ADD COLUMN isPremium INTEGER DEFAULT 0');
+        }
+        if (oldVersion < 3) {
+          // S'assurer que firstName et lastName existent
+          try {
+            await db.execute('ALTER TABLE users ADD COLUMN firstName TEXT');
+          } catch (e) {
+            // Colonne existe déjà, ignorer
+          }
+          try {
+            await db.execute('ALTER TABLE users ADD COLUMN lastName TEXT');
+          } catch (e) {
+            // Colonne existe déjà, ignorer
+          }
         }
       },
     );
@@ -265,10 +284,16 @@ class AuthService {
 
   // Connexion - avec fallback local automatique
   Future<Map<String, dynamic>> login(String email, String password) async {
+    print('=== LOGIN DEBUG START ===');
+    print('Email: $email');
+    print('Password length: ${password.length}');
+
     final hasConnection = await checkConnectivity();
+    print('Has connection: $hasConnection');
 
     if (hasConnection) {
       try {
+        print('Attempting API login...');
         final response = await http
             .post(
               Uri.parse('$_baseUrl/login.php'),

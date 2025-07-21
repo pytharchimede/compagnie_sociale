@@ -85,56 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _testDirectAuth() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final authProvider = context.read<AuthProvider>();
-      final result = await authProvider.testConnection(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Test Direct Auth'),
-            content: SingleChildScrollView(
-              child: Text(
-                'Résultat API:\n${result.toString()}',
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur test direct: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -280,18 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isLoading ? 'Connexion...' : 'Se connecter',
                   onPressed: _isLoading ? null : _login,
                   icon: _isLoading ? null : Icons.login,
-                ),
-                const SizedBox(height: 16),
-
-                // Bouton de test debug
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _testDirectAuth,
-                  icon: const Icon(Icons.bug_report),
-                  label: const Text('TEST DIRECT'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    side: const BorderSide(color: Colors.orange),
-                  ),
                 ),
                 const SizedBox(height: 24),
 
